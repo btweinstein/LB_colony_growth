@@ -23,6 +23,8 @@
 # define buf_nz ${buf_nz}
 % endif
 
+#define FLUID_NODE 0
+
 inline int get_spatial_index(
     int x, int y,
     int x_size, y_size)
@@ -35,6 +37,13 @@ inline int get_spatial_index(
     int x_size, int y_size, int z_size)
 {
     return z*y_size*x_size + y*x_size + x;
+}
+
+inline int get_spatial_index(
+    int x, int y, int z, int jump_id,
+    int x_size, int y_size, int z_size, int num_jumpers)
+{
+    return jump_id * z_size*y_size *x_size + z*y_size*x_size + y*x_size + x;
 }
 
 
@@ -53,76 +62,157 @@ collide_and_propagate(
     % endif
 
     // Read in BC information...
-
-    // Local position relative to (0, 0) in workgroup
-    const int lx = get_local_id(0);
-    const int ly = get_local_id(1);
-    % if dimension == 3:
-    const int lz = get_local_id(2);
-    % endif
-
-    // coordinates of the upper left corner of the buffer in image
-    // space, including halo
-    const int buf_corner_x = x - lx - halo;
-    const int buf_corner_y = y - ly - halo;
-    % if dimension == 3:
-    const int buf_corner_z = z - lz - halo;
-    % endif
-
-    // coordinates of our pixel in the local buffer
-    const int buf_x = lx + halo;
-    const int buf_y = ly + halo;
-    % if dimension == 3:
-    const int buf_z = lz + halo;
-    % endif
-
-    const int nx_local = get_local_size(0);
-    const int ny_local = get_local_size(1);
-    % if dimension == 3:
-    const int nz_local = get_local_size(2);
-    % endif
-
-    // Index of thread within our work-group
     % if dimension == 2:
-        const int idx_1d = get_spatial_index(lx, ly, nx_local, ny_local);
+    if ((x < nx) && (y < ny)){
     % elif dimension == 3:
-        const int idx_2d = get_spatial_index(lx, ly, lz, nx_local, ny_local, nz_local);
+    ((x < nx) && (y < ny) && (z < nz)){
     % endif
-
-    barrier(CLK_LOCAL_MEM_FENCE);
-    % if dimension==2:
-    if (idx_1D < buf_nx) {
-        for (int row = 0; row < buf_ny; row++) {
-            // Read in 1-d slices
-            int temp_x = buf_corner_x + idx_1D;
-            int temp_y = buf_corner_y + row;
-
-            int temp_index = get_spatial_index(x, y, nx, ny);
-
-            local_mem[row*buf_nx + idx_1D] = bc_map[temp_index];
+        const int node_type = bc_map[spatial_index];
+        if(node_type == FLUID_NODE){
+            const ${num_type} rho = rho_global[three_d_index];
+            ${collide()}
+            ${move()}
         }
     }
-    % elif dimension == 3:
-    if (idx_2d < buf_ny * buf_nx) {
-        for (int row = 0; row < buf_nz; row++) {
-            // Read in 2d-slices
-            int temp_x = buf_corner_x + idx_2d % buf_nx;
-            int temp_y = buf_corner_y + idx_2d/buf_ny;
-            int temp_z = buf_corner_z + row;
-
-            int temp_index = get_spatial_index(temp_x, temp_y, temp_z, nx, ny, nz);
-            local_mem[row*buf_ny*buf_nx + idx_2d] = bc_map[temp_index];
-        }
-    }
-    % endif
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    // Stream populations
-    ${move()}
-
-    }
-
 }
+
+<%def name='collide()'>
+
+    const ${num_type} cs_squared = cs*cs;
+    const ${num_type} cs_fourth = cs*cs*cs*cs;
+
+    for(int jump_id=0; jump_id < num_jumpers; jump_id++){
+        % if dimension == 2:
+        int jump_index = jump_id*num_populations*nx*ny + spatial_index;
+        % elif dimension == 3:
+        int jump_index = jump_id*num_populations*nx*ny*nz + spatial_index;
+        % endif
+
+        ${num_type} f_after_collision = f_global[jump_index]*(1-omega) + omega*feq_global[jump_index];
+        //TODO: If a source is needed, additional terms are needed here.
+
+        // After colliding, stream to the appropriate location.
+
+        int cur_cx = cx[jump_id];
+        int cur_cy = cy[jump_id];
+        %if dimension == 3:
+        int cur_cz = cz[jump_id];
+        %endif
+
+        int stream_x = x + cur_cx;
+        int stream_y = y + cur_cy;
+        % if dimension == 3:
+        int stream_z = z + cur_cz;
+        % endif
+
+        // Figure out what type of node the steamed position is
+
+        const int x_bc = bc_halo + stream_x;
+        const int y_bc = bc_halo + stream_y;
+        %if dimension == 3:
+        const in z_bc = bc_halo + stream_z;
+        %endif
+
+        %if dimension == 2:
+        const int bc_3d_index = cur_field*nx_bc*ny_bc + y_bc*nx_bc + x_bc; // Position in normal LB space
+        %endif
+
+        const int bc_num = bc_map[bc_3d_index];
+    }
+
+</%def>
+
+<%def name='move()'>
+    __kernel void
+    move_with_bcs(
+        __global __read_only ${num_type} *f_global,
+        __global __write_only ${num_type} *f_streamed_global,
+        __constant int *cx,
+        __constant int *cy,
+        const int nx, const int ny,
+        const int cur_field,
+        const int num_populations,
+        const int num_jumpers,
+        __global __read_only int *bc_map,
+        const int nx_bc,
+        const int ny_bc,
+        const int bc_halo,
+        __constant int *reflect_list,
+        __constant int *slip_x_list,
+        __constant int *slip_y_list)
+    {
+    for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
+        int cur_cx = cx[jump_id];
+        int cur_cy = cy[jump_id];
+        %if dimension == 3:
+        int cur_cz = cz[jump_id];
+        %endif
+
+        int stream_x = x + cur_cx;
+        int stream_y = y + cur_cy;
+        % if dimension == 3:
+        int stream_z = z + cur_cz;
+        % endif
+
+        // Figure out what type of node the steamed position is
+
+        const int x_bc = bc_halo + stream_x;
+        const int y_bc = bc_halo + stream_y;
+        %if dimension == 3:
+        const in z_bc = bc_halo + stream_z;
+        %endif
+
+        %if dimension == 2:
+        const int bc_3d_index = cur_field*nx_bc*ny_bc + y_bc*nx_bc + x_bc; // Position in normal LB space
+        %endif
+
+        const int bc_num = bc_map[bc_3d_index];
+
+        int old_4d_index = jump_id*num_populations*nx*ny + cur_field*nx*ny + y*nx + x; // The old population index
+        int new_4d_index; // Initialize to a nonsense value...will correspond to the bounceback population
+
+        if(bc_num == 0){ // In the domain
+            new_4d_index = jump_id*num_populations*nx*ny + cur_field*nx*ny + stream_y*nx + stream_x;
+        }
+        else if(bc_num == 1){ // Periodic BC
+            if (stream_x >= nx) stream_x -= nx;
+            if (stream_x < 0) stream_x += nx ;
+
+            if (stream_y >= ny) stream_y -= ny;
+            if (stream_y < 0) stream_y += ny;
+
+            new_4d_index = jump_id*num_populations*nx*ny + cur_field*nx*ny + stream_y*nx + stream_x;
+        }
+        else if(bc_num == 2){ // No-slip BC
+            const int reflect_index = reflect_list[jump_id];
+
+            new_4d_index = reflect_index*num_populations*nx*ny + cur_field*nx*ny + y*nx + x;
+        }
+        else if(bc_num == 3){ // Slip BC...if both or out you're at a corner, and bounce back.
+            //TODO: THE SLIP BC APPEARS TO LEAK MASS SOMEHOW. NOT SURE WHY.
+            int x_is_out = ((stream_x >= nx)||(stream_x < 0));
+            int y_is_out = ((stream_y >= ny)||(stream_y < 0));
+
+            int slip_index = -1;
+            if (x_is_out && !y_is_out){
+                slip_index = slip_x_list[jump_id];
+                // Keep y momentum...i.e. stream y, but keep x the same (reflected)
+                new_4d_index = slip_index*num_populations*nx*ny + cur_field*nx*ny + stream_y*nx + x;
+            }
+            else if (!x_is_out && y_is_out){
+                slip_index = slip_y_list[jump_id];
+                // Keep x momentum...i.e. stream x, but keep y the same (reflected)
+                new_4d_index = slip_index*num_populations*nx*ny + cur_field*nx*ny + y*nx + stream_x;
+            }
+            else{ // Reflect.
+                slip_index = reflect_list[jump_id];
+                new_4d_index = slip_index*num_populations*nx*ny + cur_field*nx*ny + y*nx + x;
+            }
+        }
+
+        f_streamed_global[new_4d_index] = f_global[old_4d_index];
+    }
+</%def>
 
 __kernel void
 update_feq_fluid(
@@ -449,99 +539,69 @@ update_hydro_fluid(
     }
 }
 
+<%def name='read_to_local()'>\
+    // Local position relative to (0, 0) in workgroup
+    const int lx = get_local_id(0);
+    const int ly = get_local_id(1);
+    % if dimension == 3:
+    const int lz = get_local_id(2);
+    % endif
 
+    // coordinates of the upper left corner of the buffer in image
+    // space, including halo
+    const int buf_corner_x = x - lx - halo;
+    const int buf_corner_y = y - ly - halo;
+    % if dimension == 3:
+    const int buf_corner_z = z - lz - halo;
+    % endif
 
+    // coordinates of our pixel in the local buffer
+    const int buf_x = lx + halo;
+    const int buf_y = ly + halo;
+    % if dimension == 3:
+    const int buf_z = lz + halo;
+    % endif
 
-<%def name='move()'>\
-    __kernel void
-    move_with_bcs(
-        __global __read_only ${num_type} *f_global,
-        __global __write_only ${num_type} *f_streamed_global,
-        __constant int *cx,
-        __constant int *cy,
-        const int nx, const int ny,
-        const int cur_field,
-        const int num_populations,
-        const int num_jumpers,
-        __global __read_only int *bc_map,
-        const int nx_bc,
-        const int ny_bc,
-        const int bc_halo,
-        __constant int *reflect_list,
-        __constant int *slip_x_list,
-        __constant int *slip_y_list)
-    {
-    for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
-        int cur_cx = cx[jump_id];
-        int cur_cy = cy[jump_id];
-        %if dimension == 3:
-        int cur_cz = cz[jump_id];
-        %endif
+    const int nx_local = get_local_size(0);
+    const int ny_local = get_local_size(1);
+    % if dimension == 3:
+    const int nz_local = get_local_size(2);
+    % endif
 
-        int stream_x = x + cur_cx;
-        int stream_y = y + cur_cy;
-        % if dimension == 3:
-        int stream_z = z + cur_cz;
-        % endif
+    // Index of thread within our work-group
+    % if dimension == 2:
+        const int idx_1d = get_spatial_index(lx, ly, nx_local, ny_local);
+    % elif dimension == 3:
+        const int idx_2d = get_spatial_index(lx, ly, lz, nx_local, ny_local, nz_local);
+    % endif
 
-        // Figure out what type of node the steamed position is
+    barrier(CLK_LOCAL_MEM_FENCE);
+    % if dimension==2:
+    if (idx_1D < buf_nx) {
+        for (int row = 0; row < buf_ny; row++) {
+            // Read in 1-d slices
+            int temp_x = buf_corner_x + idx_1D;
+            int temp_y = buf_corner_y + row;
 
-        const int x_bc = bc_halo + stream_x;
-        const int y_bc = bc_halo + stream_y;
-        %if dimension == 3:
-        const in z_bc = bc_halo + stream_z;
-        %endif
+            int temp_index = get_spatial_index(x, y, nx, ny);
 
-        %if dimension == 2:
-        const int bc_3d_index = cur_field*nx_bc*ny_bc + y_bc*nx_bc + x_bc; // Position in normal LB space
-        %endif
-
-        const int bc_num = bc_map[bc_3d_index];
-
-        int old_4d_index = jump_id*num_populations*nx*ny + cur_field*nx*ny + y*nx + x; // The old population index
-        int new_4d_index; // Initialize to a nonsense value...will correspond to the bounceback population
-
-        if(bc_num == 0){ // In the domain
-            new_4d_index = jump_id*num_populations*nx*ny + cur_field*nx*ny + stream_y*nx + stream_x;
+            local_mem[row*buf_nx + idx_1D] = bc_map[temp_index];
         }
-        else if(bc_num == 1){ // Periodic BC
-            if (stream_x >= nx) stream_x -= nx;
-            if (stream_x < 0) stream_x += nx ;
-
-            if (stream_y >= ny) stream_y -= ny;
-            if (stream_y < 0) stream_y += ny;
-
-            new_4d_index = jump_id*num_populations*nx*ny + cur_field*nx*ny + stream_y*nx + stream_x;
-        }
-        else if(bc_num == 2){ // No-slip BC
-            const int reflect_index = reflect_list[jump_id];
-
-            new_4d_index = reflect_index*num_populations*nx*ny + cur_field*nx*ny + y*nx + x;
-        }
-        else if(bc_num == 3){ // Slip BC...if both or out you're at a corner, and bounce back.
-            //TODO: THE SLIP BC APPEARS TO LEAK MASS SOMEHOW. NOT SURE WHY.
-            int x_is_out = ((stream_x >= nx)||(stream_x < 0));
-            int y_is_out = ((stream_y >= ny)||(stream_y < 0));
-
-            int slip_index = -1;
-            if (x_is_out && !y_is_out){
-                slip_index = slip_x_list[jump_id];
-                // Keep y momentum...i.e. stream y, but keep x the same (reflected)
-                new_4d_index = slip_index*num_populations*nx*ny + cur_field*nx*ny + stream_y*nx + x;
-            }
-            else if (!x_is_out && y_is_out){
-                slip_index = slip_y_list[jump_id];
-                // Keep x momentum...i.e. stream x, but keep y the same (reflected)
-                new_4d_index = slip_index*num_populations*nx*ny + cur_field*nx*ny + y*nx + stream_x;
-            }
-            else{ // Reflect.
-                slip_index = reflect_list[jump_id];
-                new_4d_index = slip_index*num_populations*nx*ny + cur_field*nx*ny + y*nx + x;
-            }
-        }
-
-        f_streamed_global[new_4d_index] = f_global[old_4d_index];
     }
+    % elif dimension == 3:
+    if (idx_2d < buf_ny * buf_nx) {
+        for (int row = 0; row < buf_nz; row++) {
+            // Read in 2d-slices
+            int temp_x = buf_corner_x + idx_2d % buf_nx;
+            int temp_y = buf_corner_y + idx_2d/buf_ny;
+            int temp_z = buf_corner_z + row;
+
+            int temp_index = get_spatial_index(temp_x, temp_y, temp_z, nx, ny, nz);
+            local_mem[row*buf_ny*buf_nx + idx_2d] = bc_map[temp_index];
+        }
+    }
+    % endif
+    barrier(CLK_LOCAL_MEM_FENCE);
 </%def>
 
 
