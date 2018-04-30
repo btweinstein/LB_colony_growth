@@ -67,7 +67,20 @@ collide_and_propagate(
     % elif dimension == 3:
     ((x < nx) && (y < ny) && (z < nz)){
     % endif
-        const int node_type = bc_map[spatial_index];
+        // Remember, bc-map is larger than nx, ny, nz by a given halo!
+        const int x_bc = bc_halo + x;
+        const int y_bc = bc_halo + y;
+        %if dimension == 3:
+        const int z_bc = bc_halo + z;
+        %endif
+
+        % if dimension == 2:
+        int bc_index = get_spatial_index(x_bc, y_bc, nx_bc, ny_bc);
+        % elif dimension == 3:
+        int bc_index = get_spatial_index(x_bc, y_bc, z_bc, nx_bc, ny_bc, nz_bc);
+        % endif
+
+        const int node_type = bc_map[bc_index];
         if(node_type == FLUID_NODE){
             const ${num_type} rho = rho_global[three_d_index];
             ${collide()}
@@ -106,15 +119,15 @@ collide_and_propagate(
         % endif
 
         // Figure out what type of node the steamed position is
-
-        const int x_bc = bc_halo + stream_x;
-        const int y_bc = bc_halo + stream_y;
+        const int stream_x_bc = bc_halo + stream_x;
+        const int stream_y_bc = bc_halo + stream_y;
         %if dimension == 3:
-        const in z_bc = bc_halo + stream_z;
+        const int stream_z_bc = bc_halo + stream_z;
         %endif
 
+        //
         %if dimension == 2:
-        const int bc_3d_index = cur_field*nx_bc*ny_bc + y_bc*nx_bc + x_bc; // Position in normal LB space
+        const int bc_3d_index = get_spatial_index(x_bc, y_bc, nx_bc, ny_bc);
         %endif
 
         const int bc_num = bc_map[bc_3d_index];
