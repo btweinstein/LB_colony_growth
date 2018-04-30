@@ -46,6 +46,14 @@ inline int get_spatial_index(
     return jump_id * z_size*y_size *x_size + z*y_size*x_size + y*x_size + x;
 }
 
+<%!
+def wrap1(t):
+    return t.replace('\n', '\n\t')
+def wrap2(t):
+    return t.replace('\n', '\n\t\t')
+def wrap3(t):
+    return t.replace('\n', '\n\t\t\t')
+%>
 
 __kernel void
 collide_and_propagate(
@@ -82,60 +90,69 @@ collide_and_propagate(
 
         const int node_type = bc_map[bc_index];
         if(node_type == FLUID_NODE){
-            const ${num_type} rho = rho_global[three_d_index];
-            ${collide()}
-            ${move()}
+            for(int jump_id=0; jump_id < num_jumpers; jump_id++){
+                % if dimension == 2:
+                int jump_index = jump_id*num_populations*nx*ny + spatial_index;
+                % elif dimension == 3:
+                int jump_index = jump_id*num_populations*nx*ny*nz + spatial_index;
+                % endif
+                ${bgk_collide() | wrap2}
+                ${move() | wrap2}
+            }
         }
     }
 }
 
-<%def name='collide()'>
 
-    const ${num_type} cs_squared = cs*cs;
-    const ${num_type} cs_fourth = cs*cs*cs*cs;
-
-    for(int jump_id=0; jump_id < num_jumpers; jump_id++){
-        % if dimension == 2:
-        int jump_index = jump_id*num_populations*nx*ny + spatial_index;
-        % elif dimension == 3:
-        int jump_index = jump_id*num_populations*nx*ny*nz + spatial_index;
-        % endif
-
-        ${num_type} f_after_collision = f_global[jump_index]*(1-omega) + omega*feq_global[jump_index];
-        //TODO: If a source is needed, additional terms are needed here.
-
-        // After colliding, stream to the appropriate location.
-
-        int cur_cx = cx[jump_id];
-        int cur_cy = cy[jump_id];
-        %if dimension == 3:
-        int cur_cz = cz[jump_id];
-        %endif
-
-        int stream_x = x + cur_cx;
-        int stream_y = y + cur_cy;
-        % if dimension == 3:
-        int stream_z = z + cur_cz;
-        % endif
-
-        // Figure out what type of node the steamed position is
-        const int stream_x_bc = bc_halo + stream_x;
-        const int stream_y_bc = bc_halo + stream_y;
-        %if dimension == 3:
-        const int stream_z_bc = bc_halo + stream_z;
-        %endif
-
-        //
-        %if dimension == 2:
-        const int bc_3d_index = get_spatial_index(x_bc, y_bc, nx_bc, ny_bc);
-        %endif
-
-        const int bc_num = bc_map[bc_3d_index];
-    }
-
+<%def name='bgk_collide()' buffered='True' filter='trim'>
+${num_type} f_after_collision = f_global[jump_index]*(1-omega) + omega*feq_global[jump_index];
+//TODO: If a source is needed, additional terms are needed here.
 </%def>
 
-<%def name='move()'>
+<%def name='move()' buffered='True' filter='trim'>
+// After colliding, stream to the appropriate location. Needed to write collision to f
+
+int cur_cx = cx[jump_id];
+int cur_cy = cy[jump_id];
+%if dimension == 3:
+int cur_cz = cz[jump_id];
+%endif
+
+int stream_x = x + cur_cx;
+int stream_y = y + cur_cy;
+% if dimension == 3:
+int stream_z = z + cur_cz;
+% endif
+
+// Figure out what type of node the steamed position is
+const int stream_x_bc = bc_halo + stream_x;
+const int stream_y_bc = bc_halo + stream_y;
+%if dimension == 3:
+const int stream_z_bc = bc_halo + stream_z;
+%endif
+
+% if dimension == 2:
+int streamed_bc_index = get_spatial_index(stream_x_bc, stream_y_bc, nx_bc, ny_bc);
+% elif dimension == 3:
+int streamed_bc_index = get_spatial_index(stream_x_bc, stream_y_bc, stream_z_bc, nx_bc, ny_bc, nz_bc);
+% endif
+
+const int streamed_bc = bc_map[streamed_bc_index];
+
+int streamed_index = -1; // Initialize to a nonsense value
+
+if (streamed_bc == FLUID_NODE){
+    // Propagate the collided particle distribution as appropriate
+    % if dimension == 2:
+    streamed_index = get_spatial_index(stream_x, stream_y, jump_id, nx, ny, num_jumpers);
+    % elif dimension == 3:
+    streamed_index = get_spatial_index(stream_x, stream_y, stream_z, jump_id, nx, ny, nz, num_jumpers);
+    % endif
+}
+f_global[streamed_index] = f_after_collision;
+</%def>
+
+<%def name='move_old()'>
     __kernel void
     move_with_bcs(
         __global __read_only ${num_type} *f_global,
