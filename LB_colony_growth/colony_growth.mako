@@ -17,6 +17,9 @@
 //No need for number of populations...each population may have different DDQm stencil.
 
 #define FLUID_NODE 0
+%for i in range(1, num_alleles + 1):
+#define ALLELE_${i} ${i}
+%endfor
 
 inline int get_spatial_index(
     int x, int y,
@@ -171,6 +174,9 @@ if (streamed_bc == FLUID_NODE){
     % elif dimension == 3:
     streamed_index = get_spatial_index(stream_x, stream_y, stream_z, jump_id, nx, ny, nz, num_jumpers);
     % endif
+}
+else{ // You are at a population node
+    // Determine Cwall via finite difference
 }
 f_global[streamed_index] = f_after_collision;
 </%def>
