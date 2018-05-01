@@ -48,27 +48,39 @@ def wrap2(t):
 def wrap3(t):
     return t.replace('\n', '\n\t\t\t')
 %>
+
+<%
+def print_kernel_args(cur_kernel_list):
+    num_args = len(cur_kernel_list)
+    for i in range(num_args):
+        context.write('     ')
+        context.write(cur_kernel_list[i][1])
+        if i < num_args - 1:
+            context.write(',\n')
+%>
+
+
 #########################
 
 <%
     cur_kernel = 'collide_and_propagate'
-    kernel_arguments[cur_kernel] = {}
-    cur_kernel_dict = kernel_arguments[cur_kernel]
+    kernel_arguments[cur_kernel] = []
+    cur_kernel_list = kernel_arguments[cur_kernel]
 
-    cur_kernel_dict['bc_halo'] =  'const int bc_halo'
-    cur_kernel_dict['bc_map'] = '__global __read_only int *bc_map'
-    cur_kernel_dict['num_jumpers']  = 'const int num_jumpers'
-    cur_kernel_dict['f']  = '__global '+num_type+' *f_global'
-    cur_kernel_dict['feq'] = '__global __read_only '+num_type+' *feq_global'
-    cur_kernel_dict['omega'] = 'const '+num_type+' omega'
-    cur_kernel_dict['cvec']  = '__constant int *cvec'
+    cur_kernel_list.append(['bc_halo','const int bc_halo'])
+    cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map'])
+    cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
+    cur_kernel_list.append(['f', '__global '+num_type+' *f_global'])
+    cur_kernel_list.append(['feq', '__global __read_only '+num_type+' *feq_global'])
+    cur_kernel_list.append(['omega', 'const '+num_type+' omega'])
+    cur_kernel_list.append(['cvec', '__constant int *cvec'])
 %>
 
 __kernel void
 collide_and_propagate(
-%for z in cur_kernel_dict.values():
-    ${z},
-%endfor
+<%
+    print_kernel_args(cur_kernel_list)
+%>
 )
 {
     // Get the spatial index
