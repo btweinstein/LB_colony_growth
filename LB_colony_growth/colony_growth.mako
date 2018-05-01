@@ -16,13 +16,6 @@
 % endif
 //No need for number of populations...each population may have different DDQm stencil.
 
-// Define variables dealing with local memory...
-# define buf_nx ${buf_nx}
-# define buf_ny ${buf_ny}
-% if dimension == 3:
-# define buf_nz ${buf_nz}
-% endif
-
 #define FLUID_NODE 0
 
 inline int get_spatial_index(
@@ -46,6 +39,7 @@ inline int get_spatial_index(
     return jump_id * z_size*y_size *x_size + z*y_size*x_size + y*x_size + x;
 }
 
+### Helpful filters ###
 <%!
 def wrap1(t):
     return t.replace('\n', '\n\t')
@@ -54,9 +48,27 @@ def wrap2(t):
 def wrap3(t):
     return t.replace('\n', '\n\t\t\t')
 %>
+#########################
+
+<%
+    cur_kernel = 'collide_and_propagate'
+    kernel_arguments[cur_kernel] = {}
+    cur_kernel_dict = kernel_arguments[cur_kernel]
+
+    cur_kernel_dict['bc_halo'] =  'const int bc_halo'
+    cur_kernel_dict['bc_map'] = '__global __read_only int *bc_map'
+    cur_kernel_dict['num_jumpers']  = 'const int num_jumpers'
+    cur_kernel_dict['f']  = '__global '+num_type+' *f_global'
+    cur_kernel_dict['feq'] = '__global __read_only '+num_type+' *feq_global'
+    cur_kernel_dict['omega'] = 'const '+num_type+' omega'
+    cur_kernel_dict['cvec']  = '__constant int *cvec'
+%>
 
 __kernel void
 collide_and_propagate(
+%for z in cur_kernel_dict.values():
+    ${z},
+%endfor
 )
 {
     // Get the spatial index
@@ -96,26 +108,25 @@ collide_and_propagate(
                 % elif dimension == 3:
                 int jump_index = jump_id*num_populations*nx*ny*nz + spatial_index;
                 % endif
-                ${bgk_collide() | wrap2}
+                ${collide_bgk() | wrap2}
                 ${move() | wrap2}
             }
         }
     }
 }
 
-
-<%def name='bgk_collide()' buffered='True' filter='trim'>
+<%def name='collide_bgk()' buffered='True' filter='trim'>
 ${num_type} f_after_collision = f_global[jump_index]*(1-omega) + omega*feq_global[jump_index];
 //TODO: If a source is needed, additional terms are needed here.
 </%def>
 
 <%def name='move()' buffered='True' filter='trim'>
-// After colliding, stream to the appropriate location. Needed to write collision to f
+// After colliding, stream to the appropriate location. Needed to write collision to f6
 
-int cur_cx = cx[jump_id];
-int cur_cy = cy[jump_id];
+int cur_cx = cvec[get_spatial_index(0, jump_id, ${dimension}, num_jumpers)];
+int cur_cy = cvec[get_spatial_index(1, jump_id, ${dimension}, num_jumpers)];
 %if dimension == 3:
-int cur_cz = cz[jump_id];
+int cur_cz = cvec[get_spatial_index(2, jump_id, ${dimension}, num_jumpers)];
 %endif
 
 int stream_x = x + cur_cx;
