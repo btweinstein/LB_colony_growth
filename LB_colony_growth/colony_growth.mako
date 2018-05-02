@@ -18,6 +18,7 @@
 
 #define FLUID_NODE 0
 #define WALL_NODE 1
+#define NOT_IN_DOMAIN 2
 //Alleles get negative numbers as identifiers
 %for i in range(1, num_alleles + 1):
 #define ALLELE_${i} ${-1*i}
@@ -294,7 +295,7 @@ const int idx_2d = get_spatial_index(lx, ly, lz, nx_local, ny_local, nz_local);
 % endif
 </%def>
 
-<%def name='read_to_local(var_name, local_mem, default_value, halo_offset=0)' buffered='True' filter='trim'>
+<%def name='read_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
 % if dimension==2:
 if (idx_1D < buf_nx) {
     for (int row = 0; row < buf_ny; row++) {
@@ -310,6 +311,45 @@ if (idx_1D < buf_nx) {
             value = ${var_name}[temp_index];
         }
         % endif
+
+        ${local_mem}[row*buf_nx + idx_1D] = value;
+    }
+}
+% elif dimension == 3:
+if (idx_2d < buf_ny * buf_nx) {
+    for (int row = 0; row < buf_nz; row++) {
+        // Read in 2d-slices
+        int temp_x = buf_corner_x + idx_2d % buf_nx;
+        int temp_y = buf_corner_y + idx_2d/buf_ny;
+        int temp_z = buf_corner_z + row;
+
+        ${num_type} value = ${default_value};
+        % if var_name is not None:
+        if((temp_x < nx) && (temp_x > 0) && (temp_y < ny) && (temp_y > 0) && (temp_z < nz) && (temp_z > 0)){
+            int temp_index = get_spatial_index(temp_x, temp_y, temp_z, nx, ny, nz);
+            value = ${var_name}[temp_index];
+        }
+        % endif
+        ${local_mem}[row*buf_ny*buf_nx + idx_2d] = value;
+    }
+}
+% endif
+</%def>
+
+<%def name='read_bc_to_local(var_name, local_mem)' buffered='True' filter='trim'>
+% if dimension==2:
+if (idx_1D < buf_nx) {
+    for (int row = 0; row < buf_ny; row++) {
+        // Read in 1-d slices
+        int temp_x = buf_corner_x + idx_1D + bc_halo;
+        int temp_y = buf_corner_y + row + bc_halo;
+
+        // If in the bc_map...
+        ${num_type} value = NOT_IN_DOMAIN;
+        if((temp_x < nx_bc) && (temp_x > 0) && (temp_y < ny_bc) && (temp_y > 0)){
+            int temp_index = get_spatial_index(temp_x, temp_y, nx_bc, ny_bc);
+            value = ${var_name}[temp_index];
+        }
 
         ${local_mem}[row*buf_nx + idx_1D] = value;
     }
