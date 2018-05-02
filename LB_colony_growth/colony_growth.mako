@@ -44,12 +44,20 @@ inline int get_spatial_index(
 
 ### Helpful filters ###
 <%!
+
+space4 = '    '
+
 def wrap1(t):
-    return t.replace('\n', '\n\t')
+    return t.replace('\n', '\n' + space4)
+
 def wrap2(t):
-    return t.replace('\n', '\n\t\t')
+    return t.replace('\n', '\n' + space4 + space4)
+
 def wrap3(t):
-    return t.replace('\n', '\n\t\t\t')
+    return t.replace('\n', '\n' + space4 + space4 + space4)
+
+def wrap4(t):
+    return t.replace('\n', '\n' + space4 + space4 + space4 + space4)
 %>
 
 <%
@@ -77,6 +85,14 @@ def print_kernel_args(cur_kernel_list):
     cur_kernel_list.append(['feq', '__global __read_only '+num_type+' *feq_global'])
     cur_kernel_list.append(['omega', 'const '+num_type+' omega'])
     cur_kernel_list.append(['cvec', '__constant int *cvec'])
+    cur_kernel_list.append(['rho', '__global '+num_type+' *rho_global'])
+    cur_kernel_list.append(['absorbed_mass', '__global '+num_type+' *absorbed_mass'])
+    cur_kernel_list.append(['halo', 'const int halo'])
+    cur_kernel_list.append(['buf_nx', 'const int buf_nx'])
+    cur_kernel_list.append(['buf_ny', 'const int buf_ny'])
+    cur_kernel_list.append(['buf_nz', 'const int buf_nz'])
+    cur_kernel_list.append(['local_mem', '__local '+num_type+' *rho_local'])
+    cur_kernel_list.append(['local_mem', '__local '+num_type+' *absorbed_mass_local'])
 %>
 
 __kernel void
@@ -97,12 +113,12 @@ collide_and_propagate(
     % endif
 
     // We need local memory...define necessary variables.
-    ${define_local_variables()}
+    ${define_local_variables() | wrap1}
     // Read concentration and absorbed mass at nodes into memory
     barrier(CLK_LOCAL_MEM_FENCE);
-    ${read_to_local('rho_local', 'rho_global', 0) }
+    ${read_to_local('rho_global', 'rho_local', 0) | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
-    ${read_to_local('absorbed_mass_local', 'absorbed_mass_global', 0)}
+    ${read_to_local('absorbed_mass_global', 'absorbed_mass_local', 0) | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // Main loop...
@@ -132,143 +148,143 @@ collide_and_propagate(
                 % elif dimension == 3:
                 int jump_index = jump_id*num_populations*nx*ny*nz + spatial_index;
                 % endif
-                ${collide_bgk() | wrap2}
-                ${move() | wrap2}
+                ${collide_bgk() | wrap4}
+                ${move() | wrap4}
             }
         }
     }
 }
 
 <%def name='collide_bgk()' buffered='True' filter='trim'>
-    ${num_type} f_after_collision = f_global[jump_index]*(1-omega) + omega*feq_global[jump_index];
-    //TODO: If a source is needed, additional terms are needed here.
+${num_type} f_after_collision = f_global[jump_index]*(1-omega) + omega*feq_global[jump_index];
+//TODO: If a source is needed, additional terms are needed here.
 </%def>
 
 <%def name='move()' buffered='True' filter='trim'>
-    // After colliding, stream to the appropriate location. Needed to write collision to f6
+// After colliding, stream to the appropriate location. Needed to write collision to f6
 
-    int cur_cx = cvec[get_spatial_index(0, jump_id, ${dimension}, num_jumpers)];
-    int cur_cy = cvec[get_spatial_index(1, jump_id, ${dimension}, num_jumpers)];
-    %if dimension == 3:
-    int cur_cz = cvec[get_spatial_index(2, jump_id, ${dimension}, num_jumpers)];
-    %endif
+int cur_cx = cvec[get_spatial_index(0, jump_id, ${dimension}, num_jumpers)];
+int cur_cy = cvec[get_spatial_index(1, jump_id, ${dimension}, num_jumpers)];
+%if dimension == 3:
+int cur_cz = cvec[get_spatial_index(2, jump_id, ${dimension}, num_jumpers)];
+%endif
 
-    int stream_x = x + cur_cx;
-    int stream_y = y + cur_cy;
-    % if dimension == 3:
-    int stream_z = z + cur_cz;
-    % endif
+int stream_x = x + cur_cx;
+int stream_y = y + cur_cy;
+% if dimension == 3:
+int stream_z = z + cur_cz;
+% endif
 
-    // Figure out what type of node the steamed position is
-    const int stream_x_bc = bc_halo + stream_x;
-    const int stream_y_bc = bc_halo + stream_y;
-    %if dimension == 3:
-    const int stream_z_bc = bc_halo + stream_z;
-    %endif
+// Figure out what type of node the steamed position is
+const int stream_x_bc = bc_halo + stream_x;
+const int stream_y_bc = bc_halo + stream_y;
+%if dimension == 3:
+const int stream_z_bc = bc_halo + stream_z;
+%endif
 
+% if dimension == 2:
+int streamed_bc_index = get_spatial_index(stream_x_bc, stream_y_bc, nx_bc, ny_bc);
+% elif dimension == 3:
+int streamed_bc_index = get_spatial_index(stream_x_bc, stream_y_bc, stream_z_bc, nx_bc, ny_bc, nz_bc);
+% endif
+
+const int streamed_bc = bc_map[streamed_bc_index];
+
+int streamed_index = -1; // Initialize to a nonsense value
+
+if (streamed_bc == FLUID_NODE){
+    // Propagate the collided particle distribution as appropriate
     % if dimension == 2:
-    int streamed_bc_index = get_spatial_index(stream_x_bc, stream_y_bc, nx_bc, ny_bc);
+    streamed_index = get_spatial_index(stream_x, stream_y, jump_id, nx, ny, num_jumpers);
     % elif dimension == 3:
-    int streamed_bc_index = get_spatial_index(stream_x_bc, stream_y_bc, stream_z_bc, nx_bc, ny_bc, nz_bc);
+    streamed_index = get_spatial_index(stream_x, stream_y, stream_z, jump_id, nx, ny, nz, num_jumpers);
     % endif
-
-    const int streamed_bc = bc_map[streamed_bc_index];
-
-    int streamed_index = -1; // Initialize to a nonsense value
-
-    if (streamed_bc == FLUID_NODE){
-        // Propagate the collided particle distribution as appropriate
-        % if dimension == 2:
-        streamed_index = get_spatial_index(stream_x, stream_y, jump_id, nx, ny, num_jumpers);
-        % elif dimension == 3:
-        streamed_index = get_spatial_index(stream_x, stream_y, stream_z, jump_id, nx, ny, nz, num_jumpers);
-        % endif
-    }
-    else{ // You are at a population node
-        // Determine Cwall via finite difference
-    }
-    f_global[streamed_index] = f_after_collision;
+}
+else{ // You are at a population node
+    // Determine Cwall via finite difference
+}
+f_global[streamed_index] = f_after_collision;
 </%def>
 
 ### Functions responsible for reading to local memory ###
 
 <%def name='define_local_variables()' buffered='True' filter='trim'>
-    // Local position relative to (0, 0) in workgroup
-    const int lx = get_local_id(0);
-    const int ly = get_local_id(1);
-    % if dimension == 3:
-    const int lz = get_local_id(2);
-    % endif
+// Local position relative to (0, 0) in workgroup
+const int lx = get_local_id(0);
+const int ly = get_local_id(1);
+% if dimension == 3:
+const int lz = get_local_id(2);
+% endif
 
-    // coordinates of the upper left corner of the buffer in image
-    // space, including halo
-    const int buf_corner_x = x - lx - halo;
-    const int buf_corner_y = y - ly - halo;
-    % if dimension == 3:
-    const int buf_corner_z = z - lz - halo;
-    % endif
+// coordinates of the upper left corner of the buffer in image
+// space, including halo
+const int buf_corner_x = x - lx - halo;
+const int buf_corner_y = y - ly - halo;
+% if dimension == 3:
+const int buf_corner_z = z - lz - halo;
+% endif
 
-    // coordinates of our pixel in the local buffer
-    const int buf_x = lx + halo;
-    const int buf_y = ly + halo;
-    % if dimension == 3:
-    const int buf_z = lz + halo;
-    % endif
+// coordinates of our pixel in the local buffer
+const int buf_x = lx + halo;
+const int buf_y = ly + halo;
+% if dimension == 3:
+const int buf_z = lz + halo;
+% endif
 
-    const int nx_local = get_local_size(0);
-    const int ny_local = get_local_size(1);
-    % if dimension == 3:
-    const int nz_local = get_local_size(2);
-    % endif
+const int nx_local = get_local_size(0);
+const int ny_local = get_local_size(1);
+% if dimension == 3:
+const int nz_local = get_local_size(2);
+% endif
 
-    // Index of thread within our work-group
-    % if dimension == 2:
-        const int idx_1d = get_spatial_index(lx, ly, nx_local, ny_local);
-    % elif dimension == 3:
-        const int idx_2d = get_spatial_index(lx, ly, lz, nx_local, ny_local, nz_local);
-    % endif
+// Index of thread within our work-group
+% if dimension == 2:
+    const int idx_1d = get_spatial_index(lx, ly, nx_local, ny_local);
+% elif dimension == 3:
+    const int idx_2d = get_spatial_index(lx, ly, lz, nx_local, ny_local, nz_local);
+% endif
 </%def>
 
-<%def name='read_to_local(local_mem, var_name, default_value)' buffered='True' filter='trim'>
-    % if dimension==2:
-    if (idx_1D < buf_nx) {
-        for (int row = 0; row < buf_ny; row++) {
-            // Read in 1-d slices
-            int temp_x = buf_corner_x + idx_1D;
-            int temp_y = buf_corner_y + row;
+<%def name='read_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
+% if dimension==2:
+if (idx_1D < buf_nx) {
+    for (int row = 0; row < buf_ny; row++) {
+        // Read in 1-d slices
+        int temp_x = buf_corner_x + idx_1D;
+        int temp_y = buf_corner_y + row;
 
-            ${num_type} value = 0; // Intialize to a random value
-            if((temp_x > nx) || (temp_x < 0) || (temp_y > ny) || (temp_y < 0)){
-                value = ${default_value};
-            }
-            else{
-                int temp_index = get_spatial_index(temp_x, temp_y, nx, ny);
-                value = ${var_name}[temp_index];
-            }
-
-            ${local_mem}[row*buf_nx + idx_1D] = value;
+        ${num_type} value = 0; // Intialize to a random value
+        if((temp_x > nx) || (temp_x < 0) || (temp_y > ny) || (temp_y < 0)){
+            value = ${default_value};
         }
-    }
-    % elif dimension == 3:
-    if (idx_2d < buf_ny * buf_nx) {
-        for (int row = 0; row < buf_nz; row++) {
-            // Read in 2d-slices
-            int temp_x = buf_corner_x + idx_2d % buf_nx;
-            int temp_y = buf_corner_y + idx_2d/buf_ny;
-            int temp_z = buf_corner_z + row;
-
-            ${num_type} value = 0; // Intialize to a random value
-            if((temp_x > nx) || (temp_x < 0) || (temp_y > ny) || (temp_y < 0) || (temp_z > nz) || (temp_z < 0)){
-                value = ${default_value};
-            }
-            else{
-                int temp_index = get_spatial_index(temp_x, temp_y, temp_z, nx, ny, nz);
-                value = ${var_name}[temp_index];
-            }
-            ${local_mem}[row*buf_ny*buf_nx + idx_2d] = value;
+        else{
+            int temp_index = get_spatial_index(temp_x, temp_y, nx, ny);
+            value = ${var_name}[temp_index];
         }
+
+        ${local_mem}[row*buf_nx + idx_1D] = value;
     }
-    % endif
+}
+% elif dimension == 3:
+if (idx_2d < buf_ny * buf_nx) {
+    for (int row = 0; row < buf_nz; row++) {
+        // Read in 2d-slices
+        int temp_x = buf_corner_x + idx_2d % buf_nx;
+        int temp_y = buf_corner_y + idx_2d/buf_ny;
+        int temp_z = buf_corner_z + row;
+
+        ${num_type} value = 0; // Intialize to a random value
+        if((temp_x > nx) || (temp_x < 0) || (temp_y > ny) || (temp_y < 0) || (temp_z > nz) || (temp_z < 0)){
+            value = ${default_value};
+        }
+        else{
+            int temp_index = get_spatial_index(temp_x, temp_y, temp_z, nx, ny, nz);
+            value = ${var_name}[temp_index];
+        }
+        ${local_mem}[row*buf_ny*buf_nx + idx_2d] = value;
+    }
+}
+% endif
 </%def>
 
 ################################################################################
