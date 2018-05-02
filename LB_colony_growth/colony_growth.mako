@@ -125,6 +125,7 @@ collide_and_propagate(
     barrier(CLK_LOCAL_MEM_FENCE);
     ${read_to_local('rho_global', 'rho_local', 0) | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
+    ### Passing none allows you to just initialize the absorbed mass.
     ${read_to_local(None, 'absorbed_mass_local', 0) | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -158,6 +159,9 @@ collide_and_propagate(
                 ${collide_bgk() | wrap4}
                 ${move() | wrap4}
             }
+        }
+        else if (node_type < 0){ // Population node!
+            ${absorb_mass()}
         }
     }
 }
