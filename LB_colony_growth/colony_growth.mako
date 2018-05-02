@@ -96,7 +96,13 @@ collide_and_propagate(
     const int spatial_index = get_spatial_index(x, y, z, nx, ny, nz);
     % endif
 
-    // Read in BC information...
+    // We need local memory...define necessary variables.
+    ${define_local_variables()}
+    // Read concentration and absorbed mass at nodes into memory
+    ${read_to_local(rho_local, rho_global, 0)}
+    ${read_to_local(absorbed_mass_local, absorbed_mass_local, 0)}
+
+    // Main loop...
     % if dimension == 2:
     if ((x < nx) && (y < ny)){
     % elif dimension == 3:
@@ -180,6 +186,93 @@ else{ // You are at a population node
 }
 f_global[streamed_index] = f_after_collision;
 </%def>
+
+### Functions responsible for reading to local memory ###
+
+<%def name='define_local_variables()'>
+// Local position relative to (0, 0) in workgroup
+const int lx = get_local_id(0);
+const int ly = get_local_id(1);
+% if dimension == 3:
+const int lz = get_local_id(2);
+% endif
+
+// coordinates of the upper left corner of the buffer in image
+// space, including halo
+const int buf_corner_x = x - lx - halo;
+const int buf_corner_y = y - ly - halo;
+% if dimension == 3:
+const int buf_corner_z = z - lz - halo;
+% endif
+
+// coordinates of our pixel in the local buffer
+const int buf_x = lx + halo;
+const int buf_y = ly + halo;
+% if dimension == 3:
+const int buf_z = lz + halo;
+% endif
+
+const int nx_local = get_local_size(0);
+const int ny_local = get_local_size(1);
+% if dimension == 3:
+const int nz_local = get_local_size(2);
+% endif
+
+// Index of thread within our work-group
+% if dimension == 2:
+    const int idx_1d = get_spatial_index(lx, ly, nx_local, ny_local);
+% elif dimension == 3:
+    const int idx_2d = get_spatial_index(lx, ly, lz, nx_local, ny_local, nz_local);
+% endif
+</%def>
+
+<%def name='read_to_local(local_mem, var_name, default_value)'>
+barrier(CLK_LOCAL_MEM_FENCE);
+% if dimension==2:
+if (idx_1D < buf_nx) {
+    for (int row = 0; row < buf_ny; row++) {
+        // Read in 1-d slices
+        int temp_x = buf_corner_x + idx_1D;
+        int temp_y = buf_corner_y + row;
+
+        ${num_type} value = 0; // Intialize to a random value
+        if((temp_x > nx) || (temp_x < 0) || (temp_y > ny) || (temp_y < 0)){
+            value = ${default_value};
+        }
+        else{
+            int temp_index = get_spatial_index(temp_x, temp_y, nx, ny);
+            value = ${var_name}[temp_index];
+        }
+
+        ${local_mem}[row*buf_nx + idx_1D] = value;
+    }
+}
+% elif dimension == 3:
+if (idx_2d < buf_ny * buf_nx) {
+    for (int row = 0; row < buf_nz; row++) {
+        // Read in 2d-slices
+        int temp_x = buf_corner_x + idx_2d % buf_nx;
+        int temp_y = buf_corner_y + idx_2d/buf_ny;
+        int temp_z = buf_corner_z + row;
+
+        ${num_type} value = 0; // Intialize to a random value
+        if((temp_x > nx) || (temp_x < 0) || (temp_y > ny) || (temp_y < 0) || (temp_z > nz) || (temp_z < 0)){
+            value = ${default_value};
+        }
+        else{
+            int temp_index = get_spatial_index(temp_x, temp_y, temp_z, nx, ny, nz);
+            value = ${var_name}[temp_index];
+        }
+        local_mem[row*buf_ny*buf_nx + idx_2d] = value;
+    }
+}
+% endif
+barrier(CLK_LOCAL_MEM_FENCE);
+</%def>
+
+################################################################################
+
+
 
 <%def name='move_old()'>
     __kernel void
@@ -272,6 +365,8 @@ f_global[streamed_index] = f_after_collision;
         f_streamed_global[new_4d_index] = f_global[old_4d_index];
     }
 </%def>
+
+
 
 __kernel void
 update_feq_fluid(
@@ -597,71 +692,6 @@ update_hydro_fluid(
         }
     }
 }
-
-<%def name='read_to_local()'>\
-    // Local position relative to (0, 0) in workgroup
-    const int lx = get_local_id(0);
-    const int ly = get_local_id(1);
-    % if dimension == 3:
-    const int lz = get_local_id(2);
-    % endif
-
-    // coordinates of the upper left corner of the buffer in image
-    // space, including halo
-    const int buf_corner_x = x - lx - halo;
-    const int buf_corner_y = y - ly - halo;
-    % if dimension == 3:
-    const int buf_corner_z = z - lz - halo;
-    % endif
-
-    // coordinates of our pixel in the local buffer
-    const int buf_x = lx + halo;
-    const int buf_y = ly + halo;
-    % if dimension == 3:
-    const int buf_z = lz + halo;
-    % endif
-
-    const int nx_local = get_local_size(0);
-    const int ny_local = get_local_size(1);
-    % if dimension == 3:
-    const int nz_local = get_local_size(2);
-    % endif
-
-    // Index of thread within our work-group
-    % if dimension == 2:
-        const int idx_1d = get_spatial_index(lx, ly, nx_local, ny_local);
-    % elif dimension == 3:
-        const int idx_2d = get_spatial_index(lx, ly, lz, nx_local, ny_local, nz_local);
-    % endif
-
-    barrier(CLK_LOCAL_MEM_FENCE);
-    % if dimension==2:
-    if (idx_1D < buf_nx) {
-        for (int row = 0; row < buf_ny; row++) {
-            // Read in 1-d slices
-            int temp_x = buf_corner_x + idx_1D;
-            int temp_y = buf_corner_y + row;
-
-            int temp_index = get_spatial_index(x, y, nx, ny);
-
-            local_mem[row*buf_nx + idx_1D] = bc_map[temp_index];
-        }
-    }
-    % elif dimension == 3:
-    if (idx_2d < buf_ny * buf_nx) {
-        for (int row = 0; row < buf_nz; row++) {
-            // Read in 2d-slices
-            int temp_x = buf_corner_x + idx_2d % buf_nx;
-            int temp_y = buf_corner_y + idx_2d/buf_ny;
-            int temp_z = buf_corner_z + row;
-
-            int temp_index = get_spatial_index(temp_x, temp_y, temp_z, nx, ny, nz);
-            local_mem[row*buf_ny*buf_nx + idx_2d] = bc_map[temp_index];
-        }
-    }
-    % endif
-    barrier(CLK_LOCAL_MEM_FENCE);
-</%def>
 
 
 __kernel void
