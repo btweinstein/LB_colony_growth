@@ -81,7 +81,7 @@ def print_kernel_args(cur_kernel_list):
     cur_kernel_list = kernel_arguments[cur_kernel]
 
     cur_kernel_list.append(['bc_halo','const int bc_halo'])
-    cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map'])
+    cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map_global'])
     cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
     cur_kernel_list.append(['f', '__global '+num_type+' *f_global'])
     cur_kernel_list.append(['feq', '__global __read_only '+num_type+' *feq_global'])
@@ -90,13 +90,12 @@ def print_kernel_args(cur_kernel_list):
     cur_kernel_list.append(['c_mag', '__constant '+num_type+' *c_mag'])
     cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
     cur_kernel_list.append(['rho', '__global '+num_type+' *rho_global'])
-    cur_kernel_list.append(['absorbed_mass', '__global '+num_type+' *absorbed_mass'])
     cur_kernel_list.append(['halo', 'const int halo'])
     cur_kernel_list.append(['buf_nx', 'const int buf_nx'])
     cur_kernel_list.append(['buf_ny', 'const int buf_ny'])
     cur_kernel_list.append(['buf_nz', 'const int buf_nz'])
     cur_kernel_list.append(['local_mem', '__local '+num_type+' *rho_local'])
-    cur_kernel_list.append(['local_mem', '__local '+num_type+' *absorbed_mass_local'])
+    cur_kernel_list.append(['local_mem', '__local '+num_type+' *bc_map_local'])
     cur_kernel_list.append(['k', 'const '+num_type+' k'])
     cur_kernel_list.append(['D', 'const '+num_type+' D'])
 %>
@@ -126,7 +125,7 @@ collide_and_propagate(
     ${read_to_local('rho_global', 'rho_local', 0) | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
     ### Passing none allows you to just initialize the absorbed mass.
-    ${read_to_local(None, 'absorbed_mass_local', 0) | wrap1}
+    ${read_to_local('bc_map_global', 'bc_map_local', 0) | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // Main loop...
@@ -295,7 +294,7 @@ const int idx_2d = get_spatial_index(lx, ly, lz, nx_local, ny_local, nz_local);
 % endif
 </%def>
 
-<%def name='read_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
+<%def name='read_to_local(var_name, local_mem, default_value, halo_offset=0)' buffered='True' filter='trim'>
 % if dimension==2:
 if (idx_1D < buf_nx) {
     for (int row = 0; row < buf_ny; row++) {
