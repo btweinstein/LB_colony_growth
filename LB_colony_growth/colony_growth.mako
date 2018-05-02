@@ -17,8 +17,10 @@
 //No need for number of populations...each population may have different DDQm stencil.
 
 #define FLUID_NODE 0
+#define WALL_NODE 1
+//Alleles get negative numbers as identifiers
 %for i in range(1, num_alleles + 1):
-#define ALLELE_${i} ${i}
+#define ALLELE_${i} ${-1*i}
 %endfor
 
 inline int get_spatial_index(
@@ -84,7 +86,9 @@ def print_kernel_args(cur_kernel_list):
     cur_kernel_list.append(['f', '__global '+num_type+' *f_global'])
     cur_kernel_list.append(['feq', '__global __read_only '+num_type+' *feq_global'])
     cur_kernel_list.append(['omega', 'const '+num_type+' omega'])
-    cur_kernel_list.append(['cvec', '__constant int *cvec'])
+    cur_kernel_list.append(['c_vec', '__constant int *c_vec'])
+    cur_kernel_list.append(['c_mag', '__constant '+num_type+' *c_mag'])
+    cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
     cur_kernel_list.append(['rho', '__global '+num_type+' *rho_global'])
     cur_kernel_list.append(['absorbed_mass', '__global '+num_type+' *absorbed_mass'])
     cur_kernel_list.append(['halo', 'const int halo'])
@@ -93,6 +97,8 @@ def print_kernel_args(cur_kernel_list):
     cur_kernel_list.append(['buf_nz', 'const int buf_nz'])
     cur_kernel_list.append(['local_mem', '__local '+num_type+' *rho_local'])
     cur_kernel_list.append(['local_mem', '__local '+num_type+' *absorbed_mass_local'])
+    cur_kernel_list.append(['k', 'const '+num_type+' k'])
+    cur_kernel_list.append(['D', 'const '+num_type+' D'])
 %>
 
 __kernel void
@@ -119,7 +125,7 @@ collide_and_propagate(
     barrier(CLK_LOCAL_MEM_FENCE);
     ${read_to_local('rho_global', 'rho_local', 0) | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
-    ${read_to_local('absorbed_mass_global', 'absorbed_mass_local', 0) | wrap1}
+    ${read_to_local(None, 'absorbed_mass_local', 0) | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // Main loop...
@@ -164,10 +170,10 @@ ${num_type} f_after_collision = f_global[jump_index]*(1-omega) + omega*feq_globa
 <%def name='move()' buffered='True' filter='trim'>
 // After colliding, stream to the appropriate location. Needed to write collision to f6
 
-int cur_cx = cvec[get_spatial_index(0, jump_id, ${dimension}, num_jumpers)];
-int cur_cy = cvec[get_spatial_index(1, jump_id, ${dimension}, num_jumpers)];
+int cur_cx = c_vec[get_spatial_index(0, jump_id, ${dimension}, num_jumpers)];
+int cur_cy = c_vec[get_spatial_index(1, jump_id, ${dimension}, num_jumpers)];
 %if dimension == 3:
-int cur_cz = cvec[get_spatial_index(2, jump_id, ${dimension}, num_jumpers)];
+int cur_cz = c_vec[get_spatial_index(2, jump_id, ${dimension}, num_jumpers)];
 %endif
 
 int stream_x = x + cur_cx;
@@ -201,9 +207,48 @@ if (streamed_bc == FLUID_NODE){
     streamed_index = get_spatial_index(stream_x, stream_y, stream_z, jump_id, nx, ny, nz, num_jumpers);
     % endif
 }
-else{ // You are at a population node
-    // Determine Cwall via finite difference
+else if (streamed_bc == WALL_NODE){ // Bounceback; impenetrable boundary
+    int reflect_id = reflect_list[jump_id];
+    % if dimension == 2:
+    int reflect_index = get_spatial_index(x, y, reflect_id, nx, ny, num_jumpers);
+    % elif dimension == 3:
+    int reflect_index = get_spatial_index(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
+    % endif
+
+    f_global[reflect_index] = f_after_collision;
+
+    // The streamed part collides without moving.
+    streamed_index = get_spatial_index(x, y, z, jump_id, nx, ny, nz, num_jumpers);
 }
+
+else if (streamed_bc < 0){ // You are at a population node
+    // Determine Cwall via finite difference
+    % if dimension ==2:
+    ${num_type} cur_rho = rho_local[get_spatial_index(buf_x, buf_y, buf_nx, buf_ny)];
+    %elif dimension == 3:
+    ${num_type} cur_rho = rho_local[get_spatial_index(buf_x, buf_y, buf_z, buf_nx, buf_ny, buf_nz)];
+    % endif
+
+    ${num_type} cur_c_mag = c_mag[jump_id];
+    ${num_type} rho_wall = cur_rho/(1 - (k*cur_c_mag)/(2*D));
+
+    // Based on rho_wall, do the bounceback
+    ${num_type} cur_w = w[jump_id];
+    int reflect_id = reflect_list[jump_id];
+    % if dimension == 2:
+    int reflect_index = get_spatial_index(x, y, reflect_id, nx, ny, num_jumpers);
+    % elif dimension == 3:
+    int reflect_index = get_spatial_index(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
+    % endif
+
+    f_global[reflect_index] = -f_after_collision + 2*cur_w*rho_wall;
+
+    //TODO: Update the mass absorbed atomically, in a likely painful way.
+
+    // The streamed part collides without moving.
+    streamed_index = get_spatial_index(x, y, z, jump_id, nx, ny, nz, num_jumpers);
+}
+
 f_global[streamed_index] = f_after_collision;
 </%def>
 
@@ -254,14 +299,14 @@ if (idx_1D < buf_nx) {
         int temp_x = buf_corner_x + idx_1D;
         int temp_y = buf_corner_y + row;
 
-        ${num_type} value = 0; // Intialize to a random value
-        if((temp_x > nx) || (temp_x < 0) || (temp_y > ny) || (temp_y < 0)){
-            value = ${default_value};
-        }
-        else{
+        ${num_type} value = ${default_value};
+        % if var_name is not None:
+        // If in the domain...
+        if((temp_x < nx) && (temp_x > 0) && (temp_y < ny) && (temp_y > 0)){
             int temp_index = get_spatial_index(temp_x, temp_y, nx, ny);
             value = ${var_name}[temp_index];
         }
+        % endif
 
         ${local_mem}[row*buf_nx + idx_1D] = value;
     }
@@ -274,14 +319,13 @@ if (idx_2d < buf_ny * buf_nx) {
         int temp_y = buf_corner_y + idx_2d/buf_ny;
         int temp_z = buf_corner_z + row;
 
-        ${num_type} value = 0; // Intialize to a random value
-        if((temp_x > nx) || (temp_x < 0) || (temp_y > ny) || (temp_y < 0) || (temp_z > nz) || (temp_z < 0)){
-            value = ${default_value};
-        }
-        else{
+        ${num_type} value = ${default_value};
+        % if var_name is not None:
+        if((temp_x < nx) && (temp_x > 0) && (temp_y < ny) && (temp_y > 0) && (temp_z < nz) && (temp_z > 0)){
             int temp_index = get_spatial_index(temp_x, temp_y, temp_z, nx, ny, nz);
             value = ${var_name}[temp_index];
         }
+        % endif
         ${local_mem}[row*buf_ny*buf_nx + idx_2d] = value;
     }
 }
