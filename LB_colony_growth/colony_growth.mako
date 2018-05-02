@@ -115,6 +115,7 @@ collide_and_propagate(
     // We need local memory...define necessary variables.
     ${define_local_variables() | wrap1}
     // Read concentration and absorbed mass at nodes into memory
+
     barrier(CLK_LOCAL_MEM_FENCE);
     ${read_to_local('rho_global', 'rho_local', 0) | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -239,9 +240,9 @@ const int nz_local = get_local_size(2);
 
 // Index of thread within our work-group
 % if dimension == 2:
-    const int idx_1d = get_spatial_index(lx, ly, nx_local, ny_local);
+const int idx_1d = get_spatial_index(lx, ly, nx_local, ny_local);
 % elif dimension == 3:
-    const int idx_2d = get_spatial_index(lx, ly, lz, nx_local, ny_local, nz_local);
+const int idx_2d = get_spatial_index(lx, ly, lz, nx_local, ny_local, nz_local);
 % endif
 </%def>
 
