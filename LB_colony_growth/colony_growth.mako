@@ -81,7 +81,6 @@ def print_kernel_args(cur_kernel_list):
     kernel_arguments[cur_kernel] = []
     cur_kernel_list = kernel_arguments[cur_kernel]
 
-    cur_kernel_list.append(['bc_halo','const int bc_halo'])
     cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map_global'])
     cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
     cur_kernel_list.append(['f', '__global '+num_type+' *f_global'])
@@ -91,7 +90,7 @@ def print_kernel_args(cur_kernel_list):
     cur_kernel_list.append(['c_mag', '__constant '+num_type+' *c_mag'])
     cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
     cur_kernel_list.append(['rho', '__global '+num_type+' *rho_global'])
-    cur_kernel_list.append(['halo', 'const int halo'])
+    cur_kernel_list.append(['halo', 'const int halo']) # We assume bc_halo = halo
     cur_kernel_list.append(['buf_nx', 'const int buf_nx'])
     cur_kernel_list.append(['buf_ny', 'const int buf_ny'])
     cur_kernel_list.append(['buf_nz', 'const int buf_nz'])
@@ -125,8 +124,7 @@ collide_and_propagate(
     barrier(CLK_LOCAL_MEM_FENCE);
     ${read_to_local('rho_global', 'rho_local', 0) | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
-    ### Passing none allows you to just initialize the absorbed mass.
-    ${read_to_local('bc_map_global', 'bc_map_local', 0) | wrap1}
+    ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN') | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // Main loop...
@@ -136,10 +134,10 @@ collide_and_propagate(
     ((x < nx) && (y < ny) && (z < nz)){
     % endif
         // Remember, bc-map is larger than nx, ny, nz by a given halo!
-        const int x_bc = bc_halo + x;
-        const int y_bc = bc_halo + y;
+        const int x_bc = halo + x;
+        const int y_bc = halo + y;
         %if dimension == 3:
-        const int z_bc = bc_halo + z;
+        const int z_bc = halo + z;
         %endif
 
         % if dimension == 2:
@@ -161,7 +159,7 @@ collide_and_propagate(
             }
         }
         else if (node_type < 0){ // Population node!
-            ${absorb_mass()}
+            ##${absorb_mass()}
         }
     }
 }
@@ -336,16 +334,16 @@ if (idx_2d < buf_ny * buf_nx) {
 % endif
 </%def>
 
-<%def name='read_bc_to_local(var_name, local_mem)' buffered='True' filter='trim'>
+<%def name='read_bc_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
 % if dimension==2:
 if (idx_1D < buf_nx) {
     for (int row = 0; row < buf_ny; row++) {
         // Read in 1-d slices
-        int temp_x = buf_corner_x + idx_1D + bc_halo;
-        int temp_y = buf_corner_y + row + bc_halo;
+        int temp_x = buf_corner_x + idx_1D + halo;
+        int temp_y = buf_corner_y + row + halo;
 
         // If in the bc_map...
-        ${num_type} value = NOT_IN_DOMAIN;
+        ${num_type} value = ${default_value};
         if((temp_x < nx_bc) && (temp_x > 0) && (temp_y < ny_bc) && (temp_y > 0)){
             int temp_index = get_spatial_index(temp_x, temp_y, nx_bc, ny_bc);
             value = ${var_name}[temp_index];
@@ -358,17 +356,17 @@ if (idx_1D < buf_nx) {
 if (idx_2d < buf_ny * buf_nx) {
     for (int row = 0; row < buf_nz; row++) {
         // Read in 2d-slices
-        int temp_x = buf_corner_x + idx_2d % buf_nx;
-        int temp_y = buf_corner_y + idx_2d/buf_ny;
-        int temp_z = buf_corner_z + row;
+        int temp_x = buf_corner_x + idx_2d % buf_nx + halo;
+        int temp_y = buf_corner_y + idx_2d/buf_ny + halo;
+        int temp_z = buf_corner_z + row + halo;
 
+        // If in the bc_map...
         ${num_type} value = ${default_value};
-        % if var_name is not None:
-        if((temp_x < nx) && (temp_x > 0) && (temp_y < ny) && (temp_y > 0) && (temp_z < nz) && (temp_z > 0)){
-            int temp_index = get_spatial_index(temp_x, temp_y, temp_z, nx, ny, nz);
+        if((temp_x < nx_bc) && (temp_x > 0) && (temp_y < ny_bc) && (temp_y > 0) && (temp_z < nz_bc) && (temp_z > 0)){
+            int temp_index = get_spatial_index(temp_x, temp_y, temp_z, nx_bc, ny_bc, nz_bc);
             value = ${var_name}[temp_index];
         }
-        % endif
+
         ${local_mem}[row*buf_ny*buf_nx + idx_2d] = value;
     }
 }
