@@ -73,244 +73,7 @@ def print_kernel_args(cur_kernel_list):
             context.write(',\n')
 %>
 
-
-#########################
-
-<%
-    cur_kernel = 'collide_and_propagate'
-    kernel_arguments[cur_kernel] = []
-    cur_kernel_list = kernel_arguments[cur_kernel]
-
-    cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map_global'])
-    cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
-    cur_kernel_list.append(['f', '__global '+num_type+' *f_global'])
-    cur_kernel_list.append(['feq', '__global __read_only '+num_type+' *feq_global'])
-    cur_kernel_list.append(['omega', 'const '+num_type+' omega'])
-    cur_kernel_list.append(['c_vec', '__constant int *c_vec'])
-    cur_kernel_list.append(['c_mag', '__constant '+num_type+' *c_mag'])
-    cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
-    cur_kernel_list.append(['rho', '__global '+num_type+' *rho_global'])
-    cur_kernel_list.append(['halo', 'const int halo']) # We assume bc_halo = halo
-    cur_kernel_list.append(['buf_nx', 'const int buf_nx'])
-    cur_kernel_list.append(['buf_ny', 'const int buf_ny'])
-    cur_kernel_list.append(['buf_nz', 'const int buf_nz'])
-    cur_kernel_list.append(['local_mem', '__local '+num_type+' *rho_local'])
-    cur_kernel_list.append(['local_mem', '__local '+num_type+' *bc_map_local'])
-    cur_kernel_list.append(['k', 'const '+num_type+' k'])
-    cur_kernel_list.append(['D', 'const '+num_type+' D'])
-%>
-
-__kernel void
-collide_and_propagate(
-<%
-    print_kernel_args(cur_kernel_list)
-%>
-)
-{
-    // Get the spatial index
-    const int x = get_global_id(0);
-    const int y = get_global_id(1);
-    % if dimension == 2:
-    const int spatial_index = get_spatial_index(x, y, nx, ny);
-    % else:
-    const int z = get_global_id(2);
-    const int spatial_index = get_spatial_index(x, y, z, nx, ny, nz);
-    % endif
-
-    // We need local memory...define necessary variables.
-    ${define_local_variables() | wrap1}
-    // Read concentration and absorbed mass at nodes into memory
-
-    barrier(CLK_LOCAL_MEM_FENCE);
-    ${read_to_local('rho_global', 'rho_local', 0) | wrap1}
-    ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN') | wrap1}
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    // Main loop...
-    % if dimension == 2:
-    if ((x < nx) && (y < ny)){
-    % elif dimension == 3:
-    if ((x < nx) && (y < ny) && (z < nz)){
-    % endif
-
-        % if dimension == 2:
-        const int local_bc_index = get_spatial_index(buf_x, buf_y, buf_nx, buf_ny);
-        % elif dimension == 3:
-        const int local_bc_index = get_spatial_index(buf_x, buf_y, buf_z, buf_nx, buf_ny, buf_nz);
-        % endif
-
-        const int node_type = bc_map_local[local_bc_index];
-        if(node_type == FLUID_NODE){
-            for(int jump_id=0; jump_id < num_jumpers; jump_id++){
-                % if dimension == 2:
-                int jump_index = get_spatial_index(x, y, jump_id, nx, ny, num_jumpers);
-                % elif dimension == 3:
-                int jump_index = get_spatial_index(x, y, z, jump_id, nx, ny, nz, num_jumpers);
-                % endif
-
-                ${collide_bgk() | wrap4}
-
-                ${move() | wrap4}
-            }
-        }
-        else if (node_type < 0){ // Population node!
-            ${absorb_mass() | wrap3}
-        }
-    }
-}
-
-<%def name='absorb_mass()' buffered='True' filter='trim'>
-// Loop over nearest neighbors
-%if dimension == 2:
-int cx[4] = {1, -1, 0, 0};
-int cy[4] = {0,  0, 1,-1};
-const int num_neighbors = 4;
-%elif dimension == 3:
-int cx[6] = {1, -1, 0, 0, 0, 0};
-int cy[6] = {0,  0, 1,-1, 0, 0};
-int cz[6] = {0,  0, 0, 0, 1,-1};
-const int num_neighbors = 6;
-%endif
-
-${num_type} mass_to_add = 0;
-for(int i=0; i < num_neighbors; i++){
-    const int cur_cx = cx[i];
-    const int cur_cy = cy[i];
-    %if dimension == 3:
-    const int cur_cz = cz[i];
-    %endif
-
-    // Figure out what type of node the steamed position is
-    const int stream_x_local = buf_x + cur_cx;
-    const int stream_y_local = buf_y + cur_cy;
-    %if dimension == 3:
-    const int stream_z_local = buf_z + cur_cz;
-    %endif
-
-    % if dimension == 2:
-    int streamed_index_local = get_spatial_index(stream_x_local, stream_y_local, buf_nx, buf_ny);
-    % elif dimension == 3:
-    int streamed_index_local = get_spatial_index(
-        stream_x_local, stream_y_local, stream_z_local,
-        buf_nx, buf_ny, buf_nz
-    );
-    % endif
-
-    const int streamed_bc = bc_map_local[streamed_index_local];
-
-    if (streamed_bc == FLUID_NODE){ // Scalar can diffuse in
-        // Determine Cwall via finite difference
-        % if dimension ==2:
-        const ${num_type} cur_rho = rho_local[get_spatial_index(buf_x, buf_y, buf_nx, buf_ny)];
-        %elif dimension == 3:
-        const ${num_type} cur_rho = rho_local[get_spatial_index(buf_x, buf_y, buf_z, buf_nx, buf_ny, buf_nz)];
-        % endif
-
-        const ${num_type} cur_c_mag = 1.0; // Magnitude to nearest neighbors is always one
-        const ${num_type} rho_wall = cur_rho/(1 - (k*cur_c_mag)/(2*D));
-
-        //Update the mass at the site accordingly
-        // Flux in is k*rho_wall...and in lattice units, all additional factors are one.
-        mass_to_add += k*rho_wall;
-    }
-}
-absorbed_mass_global[spatial_index] += mass_to_add;
-
-</%def>
-
-<%def name='collide_bgk()' buffered='True' filter='trim'>
-${num_type} f_after_collision = f_global[jump_index]*(1-omega) + omega*feq_global[jump_index];
-//TODO: If a source is needed, additional terms are needed here.
-</%def>
-
-<%def name='move()' buffered='True' filter='trim'>
-// After colliding, stream to the appropriate location. Needed to write collision to f6
-
-int cur_cx = c_vec[get_spatial_index(0, jump_id, ${dimension}, num_jumpers)];
-int cur_cy = c_vec[get_spatial_index(1, jump_id, ${dimension}, num_jumpers)];
-%if dimension == 3:
-int cur_cz = c_vec[get_spatial_index(2, jump_id, ${dimension}, num_jumpers)];
-%endif
-
-// Figure out what type of node the steamed position is
-const int stream_x_local = buf_x + cur_cx;
-const int stream_y_local = buf_y + cur_cy;
-%if dimension == 3:
-const int stream_z_local = buf_z + cur_cz;
-%endif
-
-% if dimension == 2:
-int streamed_index_local = get_spatial_index(stream_x_local, stream_y_local, buf_nx, buf_ny);
-% elif dimension == 3:
-int streamed_index_local = get_spatial_index(
-    stream_x_local, stream_y_local, stream_z_local,
-    buf_nx, buf_ny, buf_nz
-);
-% endif
-
-const int streamed_bc = bc_map_local[streamed_index_local];
-
-int streamed_index = -1; // Initialize to a nonsense value
-
-if (streamed_bc == FLUID_NODE){
-    // Propagate the collided particle distribution as appropriate
-
-    int stream_x = x + cur_cx;
-    int stream_y = y + cur_cy;
-    % if dimension == 3:
-    int stream_z = z + cur_cz;
-    % endif
-
-    % if dimension == 2:
-    streamed_index = get_spatial_index(stream_x, stream_y, jump_id, nx, ny, num_jumpers);
-    % elif dimension == 3:
-    streamed_index = get_spatial_index(stream_x, stream_y, stream_z, jump_id, nx, ny, nz, num_jumpers);
-    % endif
-}
-else if (streamed_bc == WALL_NODE){ // Bounceback; impenetrable boundary
-    int reflect_id = reflect_list[jump_id];
-    % if dimension == 2:
-    int reflect_index = get_spatial_index(x, y, reflect_id, nx, ny, num_jumpers);
-    % elif dimension == 3:
-    int reflect_index = get_spatial_index(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
-    % endif
-
-    f_global[reflect_index] = f_after_collision;
-
-    // The streamed part collides without moving.
-    streamed_index = get_spatial_index(x, y, z, jump_id, nx, ny, nz, num_jumpers);
-}
-
-else if (streamed_bc < 0){ // You are at a population node
-    // Determine Cwall via finite difference
-    % if dimension ==2:
-    ${num_type} cur_rho = rho_local[get_spatial_index(buf_x, buf_y, buf_nx, buf_ny)];
-    %elif dimension == 3:
-    ${num_type} cur_rho = rho_local[get_spatial_index(buf_x, buf_y, buf_z, buf_nx, buf_ny, buf_nz)];
-    % endif
-
-    ${num_type} cur_c_mag = c_mag[jump_id];
-    ${num_type} rho_wall = cur_rho/(1 - (k*cur_c_mag)/(2*D));
-
-    // Based on rho_wall, do the bounceback
-    ${num_type} cur_w = w[jump_id];
-    int reflect_id = reflect_list[jump_id];
-    % if dimension == 2:
-    int reflect_index = get_spatial_index(x, y, reflect_id, nx, ny, num_jumpers);
-    % elif dimension == 3:
-    int reflect_index = get_spatial_index(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
-    % endif
-
-    f_global[reflect_index] = -f_after_collision + 2*cur_w*rho_wall;
-
-    //TODO: Update the mass absorbed atomically, in a likely painful way.
-
-    // The streamed part collides without moving.
-    streamed_index = get_spatial_index(x, y, z, jump_id, nx, ny, nz, num_jumpers);
-}
-
-f_global[streamed_index] = f_after_collision;
-</%def>
+######### Utility functions #################
 
 ### Functions responsible for reading to local memory ###
 
@@ -431,102 +194,277 @@ if (idx_2d < buf_ny * buf_nx) {
 % endif
 </%def>
 
-################################################################################
+##### Read in current thread info #####
 
-
-
-<%def name='move_old()'>
-    __kernel void
-    move_with_bcs(
-        __global __read_only ${num_type} *f_global,
-        __global __write_only ${num_type} *f_streamed_global,
-        __constant int *cx,
-        __constant int *cy,
-        const int nx, const int ny,
-        const int cur_field,
-        const int num_populations,
-        const int num_jumpers,
-        __global __read_only int *bc_map,
-        const int nx_bc,
-        const int ny_bc,
-        const int bc_halo,
-        __constant int *reflect_list,
-        __constant int *slip_x_list,
-        __constant int *slip_y_list)
-    {
-    for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
-        int cur_cx = cx[jump_id];
-        int cur_cy = cy[jump_id];
-        %if dimension == 3:
-        int cur_cz = cz[jump_id];
-        %endif
-
-        int stream_x = x + cur_cx;
-        int stream_y = y + cur_cy;
-        % if dimension == 3:
-        int stream_z = z + cur_cz;
-        % endif
-
-        // Figure out what type of node the steamed position is
-
-        const int x_bc = bc_halo + stream_x;
-        const int y_bc = bc_halo + stream_y;
-        %if dimension == 3:
-        const in z_bc = bc_halo + stream_z;
-        %endif
-
-        %if dimension == 2:
-        const int bc_3d_index = cur_field*nx_bc*ny_bc + y_bc*nx_bc + x_bc; // Position in normal LB space
-        %endif
-
-        const int bc_num = bc_map[bc_3d_index];
-
-        int old_4d_index = jump_id*num_populations*nx*ny + cur_field*nx*ny + y*nx + x; // The old population index
-        int new_4d_index; // Initialize to a nonsense value...will correspond to the bounceback population
-
-        if(bc_num == 0){ // In the domain
-            new_4d_index = jump_id*num_populations*nx*ny + cur_field*nx*ny + stream_y*nx + stream_x;
-        }
-        else if(bc_num == 1){ // Periodic BC
-            if (stream_x >= nx) stream_x -= nx;
-            if (stream_x < 0) stream_x += nx ;
-
-            if (stream_y >= ny) stream_y -= ny;
-            if (stream_y < 0) stream_y += ny;
-
-            new_4d_index = jump_id*num_populations*nx*ny + cur_field*nx*ny + stream_y*nx + stream_x;
-        }
-        else if(bc_num == 2){ // No-slip BC
-            const int reflect_index = reflect_list[jump_id];
-
-            new_4d_index = reflect_index*num_populations*nx*ny + cur_field*nx*ny + y*nx + x;
-        }
-        else if(bc_num == 3){ // Slip BC...if both or out you're at a corner, and bounce back.
-            //TODO: THE SLIP BC APPEARS TO LEAK MASS SOMEHOW. NOT SURE WHY.
-            int x_is_out = ((stream_x >= nx)||(stream_x < 0));
-            int y_is_out = ((stream_y >= ny)||(stream_y < 0));
-
-            int slip_index = -1;
-            if (x_is_out && !y_is_out){
-                slip_index = slip_x_list[jump_id];
-                // Keep y momentum...i.e. stream y, but keep x the same (reflected)
-                new_4d_index = slip_index*num_populations*nx*ny + cur_field*nx*ny + stream_y*nx + x;
-            }
-            else if (!x_is_out && y_is_out){
-                slip_index = slip_y_list[jump_id];
-                // Keep x momentum...i.e. stream x, but keep y the same (reflected)
-                new_4d_index = slip_index*num_populations*nx*ny + cur_field*nx*ny + y*nx + stream_x;
-            }
-            else{ // Reflect.
-                slip_index = reflect_list[jump_id];
-                new_4d_index = slip_index*num_populations*nx*ny + cur_field*nx*ny + y*nx + x;
-            }
-        }
-
-        f_streamed_global[new_4d_index] = f_global[old_4d_index];
-    }
+<%def name='define_thread_location()', buffered='True', filter='trim'>
+// Get the spatial index
+const int x = get_global_id(0);
+const int y = get_global_id(1);
+% if dimension == 2:
+const int spatial_index = get_spatial_index(x, y, nx, ny);
+% else:
+const int z = get_global_id(2);
+const int spatial_index = get_spatial_index(x, y, z, nx, ny, nz);
+% endif
 </%def>
 
+######### Collide & Propagate kernel ########
+
+<%
+    cur_kernel = 'collide_and_propagate'
+    kernel_arguments[cur_kernel] = []
+    cur_kernel_list = kernel_arguments[cur_kernel]
+
+    cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map_global'])
+    cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
+    cur_kernel_list.append(['f', '__global '+num_type+' *f_global'])
+    cur_kernel_list.append(['feq', '__global __read_only '+num_type+' *feq_global'])
+    cur_kernel_list.append(['omega', 'const '+num_type+' omega'])
+    cur_kernel_list.append(['c_vec', '__constant int *c_vec'])
+    cur_kernel_list.append(['c_mag', '__constant '+num_type+' *c_mag'])
+    cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
+    cur_kernel_list.append(['rho', '__global '+num_type+' *rho_global'])
+    cur_kernel_list.append(['halo', 'const int halo']) # We assume bc_halo = halo
+    cur_kernel_list.append(['buf_nx', 'const int buf_nx'])
+    cur_kernel_list.append(['buf_ny', 'const int buf_ny'])
+    cur_kernel_list.append(['buf_nz', 'const int buf_nz'])
+    cur_kernel_list.append(['local_mem', '__local '+num_type+' *rho_local'])
+    cur_kernel_list.append(['local_mem', '__local '+num_type+' *bc_map_local'])
+    cur_kernel_list.append(['k', 'const '+num_type+' k'])
+    cur_kernel_list.append(['D', 'const '+num_type+' D'])
+%>
+
+__kernel void
+collide_and_propagate(
+<%
+    print_kernel_args(cur_kernel_list)
+%>
+)
+{
+    // Get info about where thread is located in global memory
+    ${define_thread_location() | wrap1}
+
+    // We need local memory...define necessary variables.
+    ${define_local_variables() | wrap1}
+    // Read concentration and absorbed mass at nodes into memory
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+    ${read_to_local('rho_global', 'rho_local', 0) | wrap1}
+    ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN') | wrap1}
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    // Main loop...
+    % if dimension == 2:
+    if ((x < nx) && (y < ny)){
+    % elif dimension == 3:
+    if ((x < nx) && (y < ny) && (z < nz)){
+    % endif
+
+        % if dimension == 2:
+        const int local_bc_index = get_spatial_index(buf_x, buf_y, buf_nx, buf_ny);
+        % elif dimension == 3:
+        const int local_bc_index = get_spatial_index(buf_x, buf_y, buf_z, buf_nx, buf_ny, buf_nz);
+        % endif
+
+        const int node_type = bc_map_local[local_bc_index];
+        if(node_type == FLUID_NODE){
+            for(int jump_id=0; jump_id < num_jumpers; jump_id++){
+                % if dimension == 2:
+                int jump_index = get_spatial_index(x, y, jump_id, nx, ny, num_jumpers);
+                % elif dimension == 3:
+                int jump_index = get_spatial_index(x, y, z, jump_id, nx, ny, nz, num_jumpers);
+                % endif
+
+                ${collide_bgk() | wrap4}
+
+                ${move() | wrap4}
+            }
+        }
+        else if (node_type < 0){ // Population node!
+            ${absorb_mass() | wrap3}
+        }
+    }
+}
+
+<%def name='absorb_mass()' buffered='True' filter='trim'>
+// Loop over nearest neighbors
+%if dimension == 2:
+int cx[4] = {1, -1, 0, 0};
+int cy[4] = {0,  0, 1,-1};
+const int num_neighbors = 4;
+%elif dimension == 3:
+int cx[6] = {1, -1, 0, 0, 0, 0};
+int cy[6] = {0,  0, 1,-1, 0, 0};
+int cz[6] = {0,  0, 0, 0, 1,-1};
+const int num_neighbors = 6;
+%endif
+
+${num_type} mass_to_add = 0;
+for(int i=0; i < num_neighbors; i++){
+    const int cur_cx = cx[i];
+    const int cur_cy = cy[i];
+    %if dimension == 3:
+    const int cur_cz = cz[i];
+    %endif
+
+    // Figure out what type of node the steamed position is
+    const int stream_x_local = buf_x + cur_cx;
+    const int stream_y_local = buf_y + cur_cy;
+    %if dimension == 3:
+    const int stream_z_local = buf_z + cur_cz;
+    %endif
+
+    % if dimension == 2:
+    int streamed_index_local = get_spatial_index(stream_x_local, stream_y_local, buf_nx, buf_ny);
+    % elif dimension == 3:
+    int streamed_index_local = get_spatial_index(
+        stream_x_local, stream_y_local, stream_z_local,
+        buf_nx, buf_ny, buf_nz
+    );
+    % endif
+
+    const int streamed_bc = bc_map_local[streamed_index_local];
+
+    if (streamed_bc == FLUID_NODE){ // Scalar can diffuse in
+        // Determine Cwall via finite difference
+        % if dimension ==2:
+        const ${num_type} cur_rho = rho_local[get_spatial_index(buf_x, buf_y, buf_nx, buf_ny)];
+        %elif dimension == 3:
+        const ${num_type} cur_rho = rho_local[get_spatial_index(
+            buf_x, buf_y, buf_z,
+            buf_nx, buf_ny, buf_nz)
+        ];
+        % endif
+
+        const ${num_type} cur_c_mag = 1.0; // Magnitude to nearest neighbors is always one
+        const ${num_type} rho_wall = cur_rho/(1 - (k*cur_c_mag)/(2*D));
+
+        //Update the mass at the site accordingly
+        // Flux in is k*rho_wall...and in lattice units, all additional factors are one.
+        mass_to_add += k*rho_wall;
+    }
+}
+absorbed_mass_global[spatial_index] += mass_to_add;
+
+</%def>
+
+<%def name='collide_bgk()' buffered='True' filter='trim'>
+${num_type} f_after_collision = f_global[jump_index]*(1-omega) + omega*feq_global[jump_index];
+//TODO: If a source is needed, additional terms are needed here.
+</%def>
+
+<%def name='move()' buffered='True' filter='trim'>
+// After colliding, stream to the appropriate location. Needed to write collision to f6
+
+int cur_cx = c_vec[get_spatial_index(0, jump_id, ${dimension}, num_jumpers)];
+int cur_cy = c_vec[get_spatial_index(1, jump_id, ${dimension}, num_jumpers)];
+%if dimension == 3:
+int cur_cz = c_vec[get_spatial_index(2, jump_id, ${dimension}, num_jumpers)];
+%endif
+
+// Figure out what type of node the steamed position is
+const int stream_x_local = buf_x + cur_cx;
+const int stream_y_local = buf_y + cur_cy;
+%if dimension == 3:
+const int stream_z_local = buf_z + cur_cz;
+%endif
+
+% if dimension == 2:
+int streamed_index_local = get_spatial_index(stream_x_local, stream_y_local, buf_nx, buf_ny);
+% elif dimension == 3:
+int streamed_index_local = get_spatial_index(
+    stream_x_local, stream_y_local, stream_z_local,
+    buf_nx, buf_ny, buf_nz
+);
+% endif
+
+const int streamed_bc = bc_map_local[streamed_index_local];
+
+int streamed_index = -1; // Initialize to a nonsense value
+
+if (streamed_bc == FLUID_NODE){
+    // Propagate the collided particle distribution as appropriate
+
+    int stream_x = x + cur_cx;
+    int stream_y = y + cur_cy;
+    % if dimension == 3:
+    int stream_z = z + cur_cz;
+    % endif
+
+    % if dimension == 2:
+    streamed_index = get_spatial_index(stream_x, stream_y, jump_id, nx, ny, num_jumpers);
+    % elif dimension == 3:
+    streamed_index = get_spatial_index(stream_x, stream_y, stream_z, jump_id, nx, ny, nz, num_jumpers);
+    % endif
+}
+else if (streamed_bc == WALL_NODE){ // Bounceback; impenetrable boundary
+    int reflect_id = reflect_list[jump_id];
+    % if dimension == 2:
+    int reflect_index = get_spatial_index(x, y, reflect_id, nx, ny, num_jumpers);
+    % elif dimension == 3:
+    int reflect_index = get_spatial_index(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
+    % endif
+
+    f_global[reflect_index] = f_after_collision;
+
+    // The streamed part collides without moving.
+    streamed_index = get_spatial_index(x, y, z, jump_id, nx, ny, nz, num_jumpers);
+}
+
+else if (streamed_bc < 0){ // You are at a population node
+    // Determine Cwall via finite difference
+    % if dimension ==2:
+    ${num_type} cur_rho = rho_local[get_spatial_index(buf_x, buf_y, buf_nx, buf_ny)];
+    %elif dimension == 3:
+    ${num_type} cur_rho = rho_local[get_spatial_index(buf_x, buf_y, buf_z, buf_nx, buf_ny, buf_nz)];
+    % endif
+
+    ${num_type} cur_c_mag = c_mag[jump_id];
+    ${num_type} rho_wall = cur_rho/(1 - (k*cur_c_mag)/(2*D));
+
+    // Based on rho_wall, do the bounceback
+    ${num_type} cur_w = w[jump_id];
+    int reflect_id = reflect_list[jump_id];
+    % if dimension == 2:
+    int reflect_index = get_spatial_index(x, y, reflect_id, nx, ny, num_jumpers);
+    % elif dimension == 3:
+    int reflect_index = get_spatial_index(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
+    % endif
+
+    f_global[reflect_index] = -f_after_collision + 2*cur_w*rho_wall;
+
+    //TODO: Update the mass absorbed atomically, in a likely painful way.
+
+    // The streamed part collides without moving.
+    streamed_index = get_spatial_index(x, y, z, jump_id, nx, ny, nz, num_jumpers);
+}
+
+f_global[streamed_index] = f_after_collision;
+</%def>
+
+######### Update after streaming kernel #########
+<%
+    cur_kernel = 'update_after_streaming'
+    kernel_arguments[cur_kernel] = []
+    cur_kernel_list = kernel_arguments[cur_kernel]
+%>
+
+__kernel void
+update_after_streaming(
+<%
+    print_kernel_args(cur_kernel_list)
+%>
+)
+{
+    ##${update_hydro()}
+    ##${update_feq()}
+}
+
+<%def name='update_hydro()'>
+
+</%def>
+
+###################### Old Stuff #############################
 
 
 __kernel void
