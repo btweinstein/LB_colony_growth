@@ -130,7 +130,7 @@ collide_and_propagate(
     % if dimension == 2:
     if ((x < nx) && (y < ny)){
     % elif dimension == 3:
-    ((x < nx) && (y < ny) && (z < nz)){
+    if ((x < nx) && (y < ny) && (z < nz)){
     % endif
 
         % if dimension == 2:
@@ -169,7 +169,7 @@ const int num_neighbors = 4;
 int cx[6] = {1, -1, 0, 0, 0, 0};
 int cy[6] = {0,  0, 1,-1, 0, 0};
 int cz[6] = {0,  0, 0, 0, 1,-1};
-num_neighbors = 6;
+const int num_neighbors = 6;
 %endif
 
 ${num_type} mass_to_add = 0;
