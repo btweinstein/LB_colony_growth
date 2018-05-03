@@ -123,7 +123,6 @@ collide_and_propagate(
 
     barrier(CLK_LOCAL_MEM_FENCE);
     ${read_to_local('rho_global', 'rho_local', 0) | wrap1}
-    barrier(CLK_LOCAL_MEM_FENCE);
     ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN') | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -161,11 +160,61 @@ collide_and_propagate(
 }
 
 <%def name='absorb_mass()' buffered='True' filter='trim'>
-    // Loop over nearest neighbors
-    for(int cx=-1; cx <= 1; cx = cx + 2){
-        for(int cy=-1; cy <= 1; cy = cy + 2){
-        }
+// Loop over nearest neighbors
+%if dimension == 2:
+int cx[4] = {1, -1, 0, 0};
+int cy[4] = {0,  0, 1,-1};
+const int num_neighbors = 4;
+%elif dimension == 3:
+int cx[6] = {1, -1, 0, 0, 0, 0};
+int cy[6] = {0,  0, 1,-1, 0, 0};
+int cz[6] = {0,  0, 0, 0, 1,-1};
+num_neighbors = 6;
+%endif
+
+${num_type} mass_to_add = 0;
+for(int i=0; i < num_neighbors; i++){
+    const int cur_cx = cx[i];
+    const int cur_cy = cy[i];
+    %if dimension == 3:
+    const int cur_cz = cz[i];
+    %endif
+
+    // Figure out what type of node the steamed position is
+    const int stream_x_local = buf_x + cur_cx;
+    const int stream_y_local = buf_y + cur_cy;
+    %if dimension == 3:
+    const int stream_z_local = buf_z + cur_cz;
+    %endif
+
+    % if dimension == 2:
+    int streamed_index_local = get_spatial_index(stream_x_local, stream_y_local, buf_nx, buf_ny);
+    % elif dimension == 3:
+    int streamed_index_local = get_spatial_index(
+        stream_x_local, stream_y_local, stream_z_local,
+        buf_nx, buf_ny, buf_nz
+    );
+    % endif
+
+    const int streamed_bc = bc_map_local[streamed_index_local];
+
+    if (streamed_bc == FLUID_NODE){ // Scalar can diffuse in
+        // Determine Cwall via finite difference
+        % if dimension ==2:
+        const ${num_type} cur_rho = rho_local[get_spatial_index(buf_x, buf_y, buf_nx, buf_ny)];
+        %elif dimension == 3:
+        const ${num_type} cur_rho = rho_local[get_spatial_index(buf_x, buf_y, buf_z, buf_nx, buf_ny, buf_nz)];
+        % endif
+
+        const ${num_type} cur_c_mag = 1.0; // Magnitude to nearest neighbors is always one
+        const ${num_type} rho_wall = cur_rho/(1 - (k*cur_c_mag)/(2*D));
+
+        //Update the mass at the site accordingly
+        // Flux in is k*rho_wall...and in lattice units, all additional factors are one.
+        mass_to_add += k*rho_wall;
     }
+}
+absorbed_mass_global[spatial_index] += mass_to_add;
 
 </%def>
 
@@ -184,10 +233,10 @@ int cur_cz = c_vec[get_spatial_index(2, jump_id, ${dimension}, num_jumpers)];
 %endif
 
 // Figure out what type of node the steamed position is
-const int stream_x_local = buf_x + stream_x;
-const int stream_y_local = buf_y + stream_y;
+const int stream_x_local = buf_x + cur_cx;
+const int stream_y_local = buf_y + cur_cy;
 %if dimension == 3:
-const int stream_z_local = buf_z + stream_z;
+const int stream_z_local = buf_z + cur_cz;
 %endif
 
 % if dimension == 2:
