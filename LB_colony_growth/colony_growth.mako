@@ -155,10 +155,19 @@ collide_and_propagate(
             }
         }
         else if (node_type < 0){ // Population node!
-            ##${absorb_mass()}
+            ${absorb_mass() | wrap3}
         }
     }
 }
+
+<%def name='absorb_mass()' buffered='True' filter='trim'>
+    // Loop over nearest neighbors
+    for(int cx=-1; cx <= 1; cx = cx + 2){
+        for(int cy=-1; cy <= 1; cy = cy + 2){
+        }
+    }
+
+</%def>
 
 <%def name='collide_bgk()' buffered='True' filter='trim'>
 ${num_type} f_after_collision = f_global[jump_index]*(1-omega) + omega*feq_global[jump_index];
