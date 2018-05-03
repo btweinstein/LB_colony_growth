@@ -21,10 +21,9 @@
 #define nz_bc ${nz_bc}
 % endif
 
-// For D2Q9, which this entire program assumes, the halo is one!
+//The code is always ok, AS LONG as the halo is one! Regardless of the stencil.
+// If any more, everything breaks.
 #define halo 1
-// D2Q9 has 9 numpers.
-#define num_jumpers 9
 
 #define FLUID_NODE 0
 #define WALL_NODE 1
@@ -270,6 +269,7 @@ int jump_index = get_spatial_index(x, y, z, ${jump_id}, nx, ny, nz, num_jumpers)
     cur_kernel_list.append(['c_vec', '__constant int *c_vec'])
     cur_kernel_list.append(['c_mag', '__constant '+num_type+' *c_mag'])
     cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
+    cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
     cur_kernel_list.append(['rho', '__global '+num_type+' *rho_global'])
     cur_kernel_list.append(['buf_nx', 'const int buf_nx'])
     cur_kernel_list.append(['buf_ny', 'const int buf_ny'])
