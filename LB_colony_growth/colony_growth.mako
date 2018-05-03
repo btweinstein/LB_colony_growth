@@ -235,6 +235,16 @@ int bc_index = get_spatial_index(x_bc, y_bc, z_bc, nx_bc, ny_bc, nz_bc);
 const int node_type = bc_map[bc_index];
 </%def>
 
+<%def name='define_jump_index(jump_id="jump_id")' buffered='True' filter='trim'>
+% if dimension == 2:
+int jump_index = get_spatial_index(x, y, ${jump_id}, nx, ny, num_jumpers);
+% elif dimension == 3:
+int jump_index = get_spatial_index(x, y, z, ${jump_id}, nx, ny, nz, num_jumpers);
+% endif
+</%def>
+
+
+
 ######### Collide & Propagate kernel ########
 
 <%
@@ -291,11 +301,7 @@ collide_and_propagate(
         const int node_type = bc_map_local[local_bc_index];
         if(node_type == FLUID_NODE){
             for(int jump_id=0; jump_id < num_jumpers; jump_id++){
-                % if dimension == 2:
-                int jump_index = get_spatial_index(x, y, jump_id, nx, ny, num_jumpers);
-                % elif dimension == 3:
-                int jump_index = get_spatial_index(x, y, z, jump_id, nx, ny, nz, num_jumpers);
-                % endif
+                ${define_jump_index() | wrap4}
 
                 ${collide_bgk() | wrap4}
 
@@ -489,10 +495,42 @@ update_after_streaming(
             ${update_hydro() | wrap3}
             ${update_feq() | wrap3}
         }
+        else{
+            // No concentration is present...act accordingly.
+            rho_global[spatial_index] = 0;
+            // We do not bother updating f & feq; we're interested in the macro variables.
+        }
     }
 }
 
-<%def name='update_hydro()'>
+<%def name='update_hydro()' buffered='True' filter='trim'>
+// Update rho!
+${num_type} new_rho = 0;
+
+for(int jump_id=0; jump_id < num_jumpers; jump_id++){
+    ${define_jump_index() | wrap1}
+
+    ${num_type} cur_f = f_global[jump_index];
+
+    new_rho += cur_f;
+}
+
+rho_global[spatial_index] = new_rho;
+</%def>
+
+<%def name='update_feq()' buffered='True' filter='trim'>
+//Using the udpated hydrodynamic variables, update feq.
+//Luckily, in this simple scenario, there is no velocity! And no cs!
+
+for(int jump_id=0; jump_id < num_jumpers; jump_id++){
+    ${define_jump_index() | wrap1}
+
+    ${num_type} cur_w = w[jump_id];
+
+    ${num_type} new_feq = cur_w*new_rho;
+
+    feq_global[jump_index] = new_feq;
+}
 
 </%def>
 
