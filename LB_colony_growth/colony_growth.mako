@@ -208,6 +208,33 @@ const int spatial_index = get_spatial_index(x, y, z, nx, ny, nz);
 % endif
 </%def>
 
+### Determine if thread is in domain
+<%def name='if_thread_in_domain()', buffered='True', filter='trim'>
+    % if dimension == 2:
+    if ((x < nx) && (y < ny))
+    % elif dimension == 3:
+    if ((x < nx) && (y < ny) && (z < nz))
+    % endif
+</%def>
+
+### Read node type from global memory
+<%def name='read_node_type_from_global()' buffered='True' filter='trim'>
+// Remember, bc-map is larger than nx, ny, nz by a given halo!
+const int x_bc = halo + x;
+const int y_bc = halo + y;
+%if dimension == 3:
+const int z_bc = halo + z;
+%endif
+
+% if dimension == 2:
+int bc_index = get_spatial_index(x_bc, y_bc, nx_bc, ny_bc);
+% elif dimension == 3:
+int bc_index = get_spatial_index(x_bc, y_bc, z_bc, nx_bc, ny_bc, nz_bc);
+% endif
+
+const int node_type = bc_map[bc_index];
+</%def>
+
 ######### Collide & Propagate kernel ########
 
 <%
@@ -254,12 +281,7 @@ collide_and_propagate(
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // Main loop...
-    % if dimension == 2:
-    if ((x < nx) && (y < ny)){
-    % elif dimension == 3:
-    if ((x < nx) && (y < ny) && (z < nz)){
-    % endif
-
+    ${if_thread_in_domain() | wrap1}{
         % if dimension == 2:
         const int local_bc_index = get_spatial_index(buf_x, buf_y, buf_nx, buf_ny);
         % elif dimension == 3:
@@ -456,8 +478,18 @@ update_after_streaming(
 %>
 )
 {
-    ##${update_hydro()}
-    ##${update_feq()}
+    // Get info about where thread is located in global memory
+    ${define_thread_location() | wrap1}
+
+    // Main loop...
+    ${if_thread_in_domain() | wrap1}{
+        // Figure out what type of node is present
+        ${read_node_type_from_global() | wrap2}
+        if (node_type == FLUID_NODE){
+            ${update_hydro() | wrap3}
+            ${update_feq() | wrap3}
+        }
+    }
 }
 
 <%def name='update_hydro()'>
