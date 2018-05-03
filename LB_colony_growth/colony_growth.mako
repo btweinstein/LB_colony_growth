@@ -148,7 +148,9 @@ collide_and_propagate(
                 % elif dimension == 3:
                 int jump_index = get_spatial_index(x, y, z, jump_id, nx, ny, nz, num_jumpers);
                 % endif
+
                 ${collide_bgk() | wrap4}
+
                 ${move() | wrap4}
             }
         }
@@ -172,31 +174,35 @@ int cur_cy = c_vec[get_spatial_index(1, jump_id, ${dimension}, num_jumpers)];
 int cur_cz = c_vec[get_spatial_index(2, jump_id, ${dimension}, num_jumpers)];
 %endif
 
-int stream_x = x + cur_cx;
-int stream_y = y + cur_cy;
-% if dimension == 3:
-int stream_z = z + cur_cz;
-% endif
-
 // Figure out what type of node the steamed position is
-const int stream_x_bc = bc_halo + stream_x;
-const int stream_y_bc = bc_halo + stream_y;
+const int stream_x_local = buf_x + stream_x;
+const int stream_y_local = buf_y + stream_y;
 %if dimension == 3:
-const int stream_z_bc = bc_halo + stream_z;
+const int stream_z_local = buf_z + stream_z;
 %endif
 
 % if dimension == 2:
-int streamed_bc_index = get_spatial_index(stream_x_bc, stream_y_bc, nx_bc, ny_bc);
+int streamed_index_local = get_spatial_index(stream_x_local, stream_y_local, buf_nx, buf_ny);
 % elif dimension == 3:
-int streamed_bc_index = get_spatial_index(stream_x_bc, stream_y_bc, stream_z_bc, nx_bc, ny_bc, nz_bc);
+int streamed_index_local = get_spatial_index(
+    stream_x_local, stream_y_local, stream_z_local,
+    buf_nx, buf_ny, buf_nz
+);
 % endif
 
-const int streamed_bc = bc_map[streamed_bc_index];
+const int streamed_bc = bc_map_local[streamed_index_local];
 
 int streamed_index = -1; // Initialize to a nonsense value
 
 if (streamed_bc == FLUID_NODE){
     // Propagate the collided particle distribution as appropriate
+
+    int stream_x = x + cur_cx;
+    int stream_y = y + cur_cy;
+    % if dimension == 3:
+    int stream_z = z + cur_cz;
+    % endif
+
     % if dimension == 2:
     streamed_index = get_spatial_index(stream_x, stream_y, jump_id, nx, ny, num_jumpers);
     % elif dimension == 3:
@@ -337,7 +343,7 @@ if (idx_1D < buf_nx) {
         int temp_y = buf_corner_y + row + halo;
 
         // If in the bc_map...
-        ${num_type} value = ${default_value};
+        int value = ${default_value};
         if((temp_x < nx_bc) && (temp_x > 0) && (temp_y < ny_bc) && (temp_y > 0)){
             int temp_index = get_spatial_index(temp_x, temp_y, nx_bc, ny_bc);
             value = ${var_name}[temp_index];
@@ -355,7 +361,7 @@ if (idx_2d < buf_ny * buf_nx) {
         int temp_z = buf_corner_z + row + halo;
 
         // If in the bc_map...
-        ${num_type} value = ${default_value};
+        int value = ${default_value};
         if((temp_x < nx_bc) && (temp_x > 0) && (temp_y < ny_bc) && (temp_y > 0) && (temp_z < nz_bc) && (temp_z > 0)){
             int temp_index = get_spatial_index(temp_x, temp_y, temp_z, nx_bc, ny_bc, nz_bc);
             value = ${var_name}[temp_index];
