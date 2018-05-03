@@ -133,26 +133,20 @@ collide_and_propagate(
     % elif dimension == 3:
     ((x < nx) && (y < ny) && (z < nz)){
     % endif
-        // Remember, bc-map is larger than nx, ny, nz by a given halo!
-        const int x_bc = halo + x;
-        const int y_bc = halo + y;
-        %if dimension == 3:
-        const int z_bc = halo + z;
-        %endif
 
         % if dimension == 2:
-        int bc_index = get_spatial_index(x_bc, y_bc, nx_bc, ny_bc);
+        const int local_bc_index = get_spatial_index(buf_x, buf_y, buf_nx, buf_ny);
         % elif dimension == 3:
-        int bc_index = get_spatial_index(x_bc, y_bc, z_bc, nx_bc, ny_bc, nz_bc);
+        const int local_bc_index = get_spatial_index(buf_x, buf_y, buf_z, buf_nx, buf_ny, buf_nz);
         % endif
 
-        const int node_type = bc_map[bc_index];
+        const int node_type = bc_map_local[local_bc_index];
         if(node_type == FLUID_NODE){
             for(int jump_id=0; jump_id < num_jumpers; jump_id++){
                 % if dimension == 2:
-                int jump_index = jump_id*num_populations*nx*ny + spatial_index;
+                int jump_index = get_spatial_index(x, y, jump_id, nx, ny, num_jumpers);
                 % elif dimension == 3:
-                int jump_index = jump_id*num_populations*nx*ny*nz + spatial_index;
+                int jump_index = get_spatial_index(x, y, z, jump_id, nx, ny, nz, num_jumpers);
                 % endif
                 ${collide_bgk() | wrap4}
                 ${move() | wrap4}
