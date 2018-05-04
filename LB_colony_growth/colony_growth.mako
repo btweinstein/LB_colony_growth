@@ -619,16 +619,31 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
 if (can_reproduce){
     ${num_type} rand_num = rand_global[spatial_index];
 
+    ${num_type} prob_total = 0;
+
     for(int jump_id=0; jump_id < num_jumpers; jump_id++){
         ${define_streamed_index_local()}
 
         const int streamed_node_type = bc_map_local[streamed_index_local];
 
-        ${num_type} prob_weight;
-
         if (streamed_node_type == FLUID_NODE){ // Population can expand into this!
-            norm_constant += w[jump_id];
-            can_reproduce = true;
+            prob_total += w[jump_id]/norm_constant;
+            if (prob_total > rand_num){
+                // Propagate to that spot, atomically!
+                % if dimension == 2:
+                int reproduce_index = get_spatial_index(x + cur_x, y+cur_y, nx, ny)
+                % elif dimension == 3:
+                int reproduce_index = get_spatial_index(x + cur_x, y+cur_y, z+cur_z, nx, ny, nz)
+                % endif
+
+                // Copy your node type into the new node atomically IF the fluid node is still there...
+                const int prev_type = atomic_cmpxchg(&reproduce_bc_map_global[reproduce_index], FLUID_NODE, node_type);
+
+                // If successful, subtract mass, because you reproduced!
+                if (prev_type == FLUID_NODE){
+                    mass_absorbed_global[spatial_index] -= m0;
+                } // Otherwise, someone reproduced and blocked you! Try again next iteration...
+            }
         }
     }
 }
