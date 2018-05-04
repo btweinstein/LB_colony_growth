@@ -21,10 +21,18 @@
 #define nz_bc ${nz_bc}
 % endif
 
+%if dimension == 2:
+
+
 %if dimension==2:
 #define NUM_NEAREST_NEIGHBORS 4
+__constant int cx_nearest[4] = {1, -1, 0, 0};
+__constant int cy_nearest[4] = {0,  0, 1,-1};
 %elif dimension == 3:
 #define NUM_NEAREST_NEIGHBORS 6
+__constant int cx_nearest[6] = {1, -1, 0, 0, 0, 0};
+__constant int cy_nearest[6] = {0,  0, 1,-1, 0, 0};
+__constant int cz_nearest[6] = {0,  0, 0, 0, 1,-1};
 %endif
 
 //The code is always ok, AS LONG as the halo is one! Regardless of the stencil.
@@ -331,23 +339,13 @@ collide_and_propagate(
 
 <%def name='absorb_mass()' buffered='True' filter='trim'>
 // Loop over nearest neighbors
-%if dimension == 2:
-int cx[4] = {1, -1, 0, 0};
-int cy[4] = {0,  0, 1,-1};
-const int num_neighbors = 4;
-%elif dimension == 3:
-int cx[6] = {1, -1, 0, 0, 0, 0};
-int cy[6] = {0,  0, 1,-1, 0, 0};
-int cz[6] = {0,  0, 0, 0, 1,-1};
-const int num_neighbors = 6;
-%endif
 
 ${num_type} mass_to_add = 0;
 for(int i=0; i < NUM_NEAREST_NEIGHBORS; i++){
-    const int cur_cx = cx[i];
-    const int cur_cy = cy[i];
+    const int cur_cx = cx_nearest[i];
+    const int cur_cy = cy_nearest[i];
     %if dimension == 3:
-    const int cur_cz = cz[i];
+    const int cur_cz = cz_nearest[i];
     %endif
 
     // Figure out what type of node the steamed position is
@@ -380,7 +378,7 @@ for(int i=0; i < NUM_NEAREST_NEIGHBORS; i++){
         % endif
 
         const ${num_type} cur_c_mag = 1.0; // Magnitude to nearest neighbors is always one
-        const ${num_type} rho_wall = cur_rho/(1 - (k*cur_c_mag)/(2*D));
+        const ${num_type} rho_wall = cur_rho/(1 + (k*cur_c_mag)/(2*D));
 
         //Update the mass at the site accordingly
         // Flux in is k*rho_wall...and in lattice units, all additional factors are one.
@@ -463,7 +461,7 @@ else if (streamed_bc < 0){ // You are at a population node
     % endif
 
     ${num_type} cur_c_mag = c_mag[jump_id];
-    ${num_type} rho_wall = cur_rho/(1 - (k*cur_c_mag)/(2*D));
+    ${num_type} rho_wall = cur_rho/(1 + (k*cur_c_mag)/(2*D));
 
     // Based on rho_wall, do the bounceback
     ${num_type} cur_w = w[jump_id];
