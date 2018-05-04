@@ -442,7 +442,7 @@ else if (streamed_bc == WALL_NODE){ // Bounceback; impenetrable boundary
     int reflect_index = get_spatial_index(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
     % endif
 
-    f_global[reflect_index] = f_after_collision;
+    f_streamed_global[reflect_index] = f_after_collision;
 
     // The streamed part collides without moving.
     streamed_index = get_spatial_index(x, y, z, jump_id, nx, ny, nz, num_jumpers);
@@ -468,15 +468,14 @@ else if (streamed_bc < 0){ // You are at a population node
     int reflect_index = get_spatial_index(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
     % endif
 
-    f_global[reflect_index] = -f_after_collision + 2*cur_w*rho_wall;
-
-    //TODO: Update the mass absorbed atomically, in a likely painful way.
+    f_streamed_global[reflect_index] = -f_after_collision + 2*cur_w*rho_wall;
 
     // The streamed part collides without moving.
     streamed_index = get_spatial_index(x, y, z, jump_id, nx, ny, nz, num_jumpers);
 }
 
-f_global[streamed_index] = f_after_collision;
+//Need to write to the streamed buffer...otherwise out of sync problems will occur
+f_streamed_global[streamed_index] = f_after_collision;
 </%def>
 
 ######### Update after streaming kernel #########
