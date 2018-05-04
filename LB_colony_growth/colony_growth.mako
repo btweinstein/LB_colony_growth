@@ -543,6 +543,57 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
 
 </%def>
 
+######### Reproduce cells kernel #########
+<%
+    cur_kernel = 'reproduce'
+    kernel_arguments[cur_kernel] = []
+    cur_kernel_list = kernel_arguments[cur_kernel]
+%>
+
+__kernel void
+reproduce(
+<%
+    print_kernel_args(cur_kernel_list)
+%>
+)
+{
+    // Get info about where thread is located in global memory
+    ${define_thread_location() | wrap1}
+    // We need local memory, notably the BC-map.
+
+    // We need local memory...define necessary variables.
+    ${define_local_variables() | wrap1}
+    // Read concentration and absorbed mass at nodes into memory
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+    ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN') | wrap1}
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    // Main loop...
+    ${if_thread_in_domain() | wrap1}{
+        // Figure out what type of node is present
+        % if dimension == 2:
+        const int local_bc_index = get_spatial_index(buf_x, buf_y, buf_nx, buf_ny);
+        % elif dimension == 3:
+        const int local_bc_index = get_spatial_index(buf_x, buf_y, buf_z, buf_nx, buf_ny, buf_nz);
+        % endif
+
+        const int node_type = bc_map_local[local_bc_index];
+
+        if (node_type < 0){ // Population node!
+            //Check if you have accumulated enough mass
+            ${num_type} current_mass = absorbed_mass_global[spatial_index];
+            if (current_mass > m_reproduce){
+                ${reproduce() | wrap3}
+            }
+        }
+    }
+}
+
+<%def name='reproduce()' buffered='True' filter='trim'>
+</%def>
+
+
 ###################### Old Stuff #############################
 
 
