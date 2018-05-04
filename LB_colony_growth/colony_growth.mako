@@ -269,10 +269,10 @@ int jump_index = get_spatial_index(x, y, z, ${jump_id}, nx, ny, nz, num_jumpers)
 
 <%def name='define_streamed_index_local()' buffered='True' filter='trim'>
 
-int cur_cx = c_vec[get_spatial_index(0, jump_id, ${dimension}, num_jumpers)];
-int cur_cy = c_vec[get_spatial_index(1, jump_id, ${dimension}, num_jumpers)];
+const int cur_cx = c_vec[get_spatial_index(0, jump_id, ${dimension}, num_jumpers)];
+const int cur_cy = c_vec[get_spatial_index(1, jump_id, ${dimension}, num_jumpers)];
 %if dimension == 3:
-int cur_cz = c_vec[get_spatial_index(2, jump_id, ${dimension}, num_jumpers)];
+const int cur_cz = c_vec[get_spatial_index(2, jump_id, ${dimension}, num_jumpers)];
 %endif
 
 // Figure out what type of node the steamed position is
@@ -592,7 +592,7 @@ reproduce(
             //Check if you have accumulated enough mass
             ${num_type} current_mass = absorbed_mass_global[spatial_index];
             if (current_mass > m_reproduce){
-                ${reproduce() | wrap3}
+                ${reproduce() | wrap4}
             }
         }
     }
@@ -604,7 +604,7 @@ reproduce(
 ${num_type} norm_constant = 0;
 
 for(int jump_id=0; jump_id < num_jumpers; jump_id++){
-    ${define_streamed_index_local()}
+    ${define_streamed_index_local() | wrap1}
 
     const int streamed_node_type = bc_map_local[streamed_index_local];
     bool can_reproduce = false;
@@ -617,12 +617,12 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
 }
 
 if (can_reproduce){
-    ${num_type} rand_num = rand_global[spatial_index];
+    const ${num_type} rand_num = rand_global[spatial_index];
 
     ${num_type} prob_total = 0;
 
     for(int jump_id=0; jump_id < num_jumpers; jump_id++){
-        ${define_streamed_index_local()}
+        ${define_streamed_index_local() | wrap2}
 
         const int streamed_node_type = bc_map_local[streamed_index_local];
 
@@ -637,7 +637,11 @@ if (can_reproduce){
                 % endif
 
                 // Copy your node type into the new node atomically IF the fluid node is still there...
-                const int prev_type = atomic_cmpxchg(&reproduce_bc_map_global[reproduce_index], FLUID_NODE, node_type);
+                const int prev_type = atomic_cmpxchg(
+                    &reproduce_bc_map_global[reproduce_index],
+                    FLUID_NODE,
+                    node_type
+                );
 
                 // If successful, subtract mass, because you reproduced!
                 if (prev_type == FLUID_NODE){
