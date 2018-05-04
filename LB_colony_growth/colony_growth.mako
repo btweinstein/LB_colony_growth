@@ -612,12 +612,25 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
     if (streamed_node_type == FLUID_NODE){ // Population can expand into this!
         norm_constant += w[jump_id];
         can_reproduce = true;
+        reproduced_global[0] = 1; // Flag that indicates if someone *can* reproduce
     }
 }
 
-//If you can't reproduce, go no further.
 if (can_reproduce){
+    ${num_type} rand_num = rand_global[spatial_index];
 
+    for(int jump_id=0; jump_id < num_jumpers; jump_id++){
+        ${define_streamed_index_local()}
+
+        const int streamed_node_type = bc_map_local[streamed_index_local];
+
+        ${num_type} prob_weight;
+
+        if (streamed_node_type == FLUID_NODE){ // Population can expand into this!
+            norm_constant += w[jump_id];
+            can_reproduce = true;
+        }
+    }
 }
 
 </%def>
