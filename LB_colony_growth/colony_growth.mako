@@ -21,8 +21,7 @@
 #define nz_bc ${nz_bc}
 % endif
 
-%if dimension == 2:
-
+#define SMALL 1e-6
 
 %if dimension==2:
 #define NUM_NEAREST_NEIGHBORS 4
@@ -258,6 +257,7 @@ int bc_index = get_spatial_index(x_bc, y_bc, z_bc, nx_bc, ny_bc, nz_bc);
 const int node_type = bc_map[bc_index];
 </%def>
 
+
 <%def name='define_jump_index(jump_id="jump_id")' buffered='True' filter='trim'>
 % if dimension == 2:
 int jump_index = get_spatial_index(x, y, ${jump_id}, nx, ny, num_jumpers);
@@ -267,6 +267,31 @@ int jump_index = get_spatial_index(x, y, z, ${jump_id}, nx, ny, nz, num_jumpers)
 </%def>
 
 
+<%def name='define_streamed_index_local()' buffered='True' filter='trim'>
+
+int cur_cx = c_vec[get_spatial_index(0, jump_id, ${dimension}, num_jumpers)];
+int cur_cy = c_vec[get_spatial_index(1, jump_id, ${dimension}, num_jumpers)];
+%if dimension == 3:
+int cur_cz = c_vec[get_spatial_index(2, jump_id, ${dimension}, num_jumpers)];
+%endif
+
+// Figure out what type of node the steamed position is
+const int stream_x_local = buf_x + cur_cx;
+const int stream_y_local = buf_y + cur_cy;
+%if dimension == 3:
+const int stream_z_local = buf_z + cur_cz;
+%endif
+
+% if dimension == 2:
+int streamed_index_local = get_spatial_index(stream_x_local, stream_y_local, buf_nx, buf_ny);
+% elif dimension == 3:
+int streamed_index_local = get_spatial_index(
+    stream_x_local, stream_y_local, stream_z_local,
+    buf_nx, buf_ny, buf_nz
+);
+% endif
+
+</%def>
 
 ######### Collide & Propagate kernel ########
 
@@ -397,27 +422,7 @@ ${num_type} f_after_collision = f_global[jump_index]*(1-omega) + omega*feq_globa
 <%def name='move()' buffered='True' filter='trim'>
 // After colliding, stream to the appropriate location. Needed to write collision to f6
 
-int cur_cx = c_vec[get_spatial_index(0, jump_id, ${dimension}, num_jumpers)];
-int cur_cy = c_vec[get_spatial_index(1, jump_id, ${dimension}, num_jumpers)];
-%if dimension == 3:
-int cur_cz = c_vec[get_spatial_index(2, jump_id, ${dimension}, num_jumpers)];
-%endif
-
-// Figure out what type of node the steamed position is
-const int stream_x_local = buf_x + cur_cx;
-const int stream_y_local = buf_y + cur_cy;
-%if dimension == 3:
-const int stream_z_local = buf_z + cur_cz;
-%endif
-
-% if dimension == 2:
-int streamed_index_local = get_spatial_index(stream_x_local, stream_y_local, buf_nx, buf_ny);
-% elif dimension == 3:
-int streamed_index_local = get_spatial_index(
-    stream_x_local, stream_y_local, stream_z_local,
-    buf_nx, buf_ny, buf_nz
-);
-% endif
+${define_streamed_index_local()}
 
 const int streamed_bc = bc_map_local[streamed_index_local];
 
@@ -594,7 +599,26 @@ reproduce(
 }
 
 <%def name='reproduce()' buffered='True' filter='trim'>
-// Get list of sites that you can reproduce into...
+
+// Calculate the normalization constant
+${num_type} norm_constant = 0;
+
+for(int jump_id=0; jump_id < num_jumpers; jump_id++){
+    ${define_streamed_index_local()}
+
+    const int streamed_node_type = bc_map_local[streamed_index_local];
+    bool can_reproduce = false;
+
+    if (streamed_node_type == FLUID_NODE){ // Population can expand into this!
+        norm_constant += w[jump_id];
+        can_reproduce = true;
+    }
+}
+
+//If you can't reproduce, go no further.
+if (can_reproduce){
+
+}
 
 </%def>
 

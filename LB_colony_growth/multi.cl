@@ -8,6 +8,7 @@
 
 #define ZERO_DENSITY 1e-12
 
+
 __kernel void
 update_feq_fluid(
     __global __write_only double *feq_global,
