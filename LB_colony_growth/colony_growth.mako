@@ -134,6 +134,14 @@ const int idx_1d = get_spatial_index(lx, ly, nx_local, ny_local);
 % elif dimension == 3:
 const int idx_2d = get_spatial_index(lx, ly, lz, nx_local, ny_local, nz_local);
 % endif
+
+// Spatial location of the thread within the buffer
+% if dimension == 2:
+const int local_index = get_spatial_index(buf_x, buf_y, buf_nx, buf_ny);
+% elif dimension == 3:
+const int local_index = get_spatial_index(buf_x, buf_y, buf_z, buf_nx, buf_ny, buf_nz);
+% endif
+
 </%def>
 
 <%def name='read_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
@@ -261,9 +269,9 @@ const int node_type = bc_map[bc_index];
 <%def name='define_jump_index(jump_id="jump_id")' buffered='True' filter='trim'>
 
 % if dimension == 2:
-int jump_index = get_spatial_index(x, y, ${jump_id}, nx, ny, num_jumpers);
+const int jump_index = get_spatial_index(x, y, ${jump_id}, nx, ny, num_jumpers);
 % elif dimension == 3:
-int jump_index = get_spatial_index(x, y, z, ${jump_id}, nx, ny, nz, num_jumpers);
+const int jump_index = get_spatial_index(x, y, z, ${jump_id}, nx, ny, nz, num_jumpers);
 % endif
 
 </%def>
@@ -304,14 +312,6 @@ ${identifier} streamed_index_global = get_spatial_index(
 );
 % endif
 
-</%def>
-
-<%def name='define_local_index()', buffered='True', filter='trim'>
-% if dimension == 2:
-const int local_index = get_spatial_index(buf_x, buf_y, buf_nx, buf_ny);
-% elif dimension == 3:
-const int local_index = get_spatial_index(buf_x, buf_y, buf_z, buf_nx, buf_ny, buf_nz);
-% endif
 </%def>
 
 ######### Collide & Propagate kernel ########
@@ -361,7 +361,6 @@ collide_and_propagate(
 
     // Main loop...
     ${if_thread_in_domain() | wrap1}{
-        ${define_local_index()}
 
         const int node_type = bc_map_local[local_index];
         if(node_type == FLUID_NODE){
@@ -429,8 +428,8 @@ int streamed_index_global = -1; // Initialize to a nonsense value
 
 if (streamed_bc == FLUID_NODE){
     // Propagate the collided particle distribution as appropriate
-    ## As streamed_index_global is already defined, no identifer is needed
-    ${define_streamed_index_global(identifier='')}
+    ## As streamed_index_global is already initialized, no identifer is needed
+    ${define_streamed_index_global(identifier='') | wrap1}
 }
 else if (streamed_bc == WALL_NODE){ // Bounceback; impenetrable boundary
     int reflect_id = reflect_list[jump_id];
@@ -449,13 +448,7 @@ else if (streamed_bc == WALL_NODE){ // Bounceback; impenetrable boundary
 else if (streamed_bc < 0){ // You are at a population node
     // Determine Cwall via finite difference
 
-
-    % if dimension ==2:
-    ${num_type} cur_rho = rho_local[get_spatial_index(buf_x, buf_y, buf_nx, buf_ny)];
-    %elif dimension == 3:
-    ${num_type} cur_rho = rho_local[get_spatial_index(buf_x, buf_y, buf_z, buf_nx, buf_ny, buf_nz)];
-    % endif
-
+    ${num_type} cur_rho = rho_local[local_index];
     ${num_type} cur_c_mag = c_mag[jump_id];
     ${num_type} rho_wall = cur_rho/(1 + (k*cur_c_mag)/(2*D));
 
@@ -471,11 +464,11 @@ else if (streamed_bc < 0){ // You are at a population node
     f_streamed_global[reflect_index] = -f_after_collision + 2*cur_w*rho_wall;
 
     // The streamed part collides without moving.
-    streamed_index = get_spatial_index(x, y, z, jump_id, nx, ny, nz, num_jumpers);
+    streamed_index_global = get_spatial_index(x, y, z, jump_id, nx, ny, nz, num_jumpers);
 }
 
 //Need to write to the streamed buffer...otherwise out of sync problems will occur
-f_streamed_global[streamed_index] = f_after_collision;
+f_streamed_global[streamed_index_global] = f_after_collision;
 </%def>
 
 ######### Update after streaming kernel #########
@@ -533,9 +526,9 @@ rho_global[spatial_index] = new_rho;
 for(int jump_id=0; jump_id < num_jumpers; jump_id++){
     ${define_jump_index() | wrap1}
 
-    ${num_type} cur_w = w[jump_id];
+    const ${num_type} cur_w = w[jump_id];
 
-    ${num_type} new_feq = cur_w*new_rho;
+    const ${num_type} new_feq = cur_w*new_rho;
 
     feq_global[jump_index] = new_feq;
 }
@@ -570,14 +563,7 @@ reproduce(
 
     // Main loop...
     ${if_thread_in_domain() | wrap1}{
-        // Figure out what type of node is present
-        % if dimension == 2:
-        const int local_bc_index = get_spatial_index(buf_x, buf_y, buf_nx, buf_ny);
-        % elif dimension == 3:
-        const int local_bc_index = get_spatial_index(buf_x, buf_y, buf_z, buf_nx, buf_ny, buf_nz);
-        % endif
-
-        const int node_type = bc_map_local[local_bc_index];
+        const int node_type = bc_map_local[local_index];
 
         if (node_type < 0){ // Population node!
             //Check if you have accumulated enough mass
@@ -595,6 +581,8 @@ reproduce(
 ${num_type} norm_constant = 0;
 
 for(int jump_id=0; jump_id < num_jumpers; jump_id++){
+    ${define_all_c() | wrap1}
+
     ${define_streamed_index_local() | wrap1}
 
     const int streamed_node_type = bc_map_local[streamed_index_local];
@@ -613,6 +601,7 @@ if (can_reproduce){
     ${num_type} prob_total = 0;
 
     for(int jump_id=0; jump_id < num_jumpers; jump_id++){
+        ${define_all_c() | wrap2}
         ${define_streamed_index_local() | wrap2}
 
         const int streamed_node_type = bc_map_local[streamed_index_local];
@@ -621,16 +610,12 @@ if (can_reproduce){
             prob_total += w[jump_id]/norm_constant;
             if (prob_total > rand_num){
                 // Propagate to that spot, atomically!
-                % if dimension == 2:
-                int reproduce_index = get_spatial_index(x + cur_x, y+cur_y, nx, ny)
-                % elif dimension == 3:
-                int reproduce_index = get_spatial_index(x + cur_x, y+cur_y, z+cur_z, nx, ny, nz)
-                % endif
+                ${define_streamed_index_global() | wrap4}
 
                 //TODO: This can probably be sped up by doing comparisons with local, *then* going to global...
                 // Copy your node type into the new node atomically IF the fluid node is still there...
                 const int prev_type = atomic_cmpxchg(
-                    &reproduce_bc_map_global[reproduce_index],
+                    &reproduce_bc_map_global[streamed_index_global],
                     FLUID_NODE,
                     node_type
                 );
