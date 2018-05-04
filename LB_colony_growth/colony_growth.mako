@@ -21,6 +21,12 @@
 #define nz_bc ${nz_bc}
 % endif
 
+%if dimension==2:
+#define NUM_NEAREST_NEIGHBORS 4
+%elif dimension == 3:
+#define NUM_NEAREST_NEIGHBORS 6
+%endif
+
 //The code is always ok, AS LONG as the halo is one! Regardless of the stencil.
 // If any more, everything breaks.
 #define halo 1
@@ -337,7 +343,7 @@ const int num_neighbors = 6;
 %endif
 
 ${num_type} mass_to_add = 0;
-for(int i=0; i < num_neighbors; i++){
+for(int i=0; i < NUM_NEAREST_NEIGHBORS; i++){
     const int cur_cx = cx[i];
     const int cur_cy = cy[i];
     %if dimension == 3:
@@ -506,7 +512,7 @@ update_after_streaming(
         else{
             // No concentration is present...act accordingly.
             rho_global[spatial_index] = 0;
-            // We do not bother updating f & feq; we're interested in the macro variables.
+            // We do not bother updating f & feq; we are interested in the macro variables.
         }
     }
 }
@@ -590,6 +596,8 @@ reproduce(
 }
 
 <%def name='reproduce()' buffered='True' filter='trim'>
+// Get list of sites that you can reproduce into...
+
 </%def>
 
 
