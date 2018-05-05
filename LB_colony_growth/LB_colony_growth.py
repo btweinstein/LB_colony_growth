@@ -20,16 +20,13 @@ parent_dir = os.path.dirname(file_dir)
 
 # Required for allocating local memory
 num_size = ct.sizeof(ct.c_double)
-
 num_type = np.double
 int_type = np.int32
 
 # Constants for defining the node map...
-OUTSIDE_DOMAIN = int_type(-1)
-REGULAR = int_type(0)
-PERIODIC_BC = int_type(1)
-NOSLIP_BC = int_type(2)
-SLIP_BC = int_type(3)
+FLUID_NODE = int_type(0)
+WALL_NODE = int_type(1)
+NOT_IN_DOMAIN = int_type(2)
 
 def get_divisible_global(global_size, local_size):
     """
