@@ -47,15 +47,15 @@ __constant int cz_nearest[6] = {0,  0, 0, 0, 1,-1};
 %endfor
 
 inline int get_spatial_index(
-    int x, int y,
-    int x_size, y_size)
+    const int x, const int y,
+    const int x_size, const int y_size)
 {
     return y*x_size + x;
 }
 
 inline int get_spatial_index(
-    int x, int y, int z,
-    int x_size, int y_size, int z_size)
+    const int x, const int y, const int z,
+    const int x_size, const int y_size, const int z_size)
 {
     return z*y_size*x_size + y*x_size + x;
 }

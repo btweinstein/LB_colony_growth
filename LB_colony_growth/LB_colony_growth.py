@@ -7,7 +7,11 @@ import pyopencl.clrandom
 import pyopencl.array
 import ctypes as ct
 import matplotlib.pyplot as plt
-from LB_D2Q9.spectral_poisson import screened_poisson as sp
+
+import mako as m
+import mako.template as mte
+import mako.runtime as mrt
+import StringIO as sio
 
 # Required to draw obstacles
 import skimage as ski
@@ -197,16 +201,15 @@ class Fluid(object):
             sim.cs
         ).wait()
 
-
 class DLA_Colony(object):
 
-    def __init__(self, ctx_info):
+    def __init__(self, ctx_info, context=None, use_interop=False):
 
-
+        self.ctx_info = ctx_info
 
         # Create global & local sizes appropriately
-        self.local_size = ctx_info['']        # The local size to be used for 2-d workgroups
-        self.global_size = get_divisible_global((self.nx, self.ny), self.two_d_local_size)
+        self.local_size = self.ctx_info['local_size']
+        self.global_size = get_divisible_global(self.ctx_info['domain_size'], self.local_size)
 
         print 'global size:' , self.global_size
         print 'local size:' , self.local_size
@@ -357,8 +360,20 @@ class DLA_Colony(object):
         # Create a simple queue
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
-        # Compile our OpenCL code
-        self.kernels = cl.Program(self.context, open(file_dir + '/multi.cl').read()).build(options='')
+        # Compile our OpenCL code...render MAKO first.
+        template = mte.Template(
+            filename= file_dir + '/colony_growth.mako',
+            strict_undefined=True
+        )
+        buf = sio.StringIO()
+
+        context = mrt.Context(buf, **self.ctx_info)
+        template.render_context(context)
+
+        with open('temp_kernels.cl', 'w') as fi:
+            fi.write(buf.getvalue())
+
+        self.kernels = cl.Program(self.context, buf.getvalue()).build(options='')
 
     def allocate_constants(self):
         """
@@ -860,106 +875,106 @@ class DLA_Colony(object):
 
         print
 
-
-class Simulation_RunnerD2Q25(Simulation_Runner):
-    def __init__(self, **kwargs):
-        super(Simulation_RunnerD2Q25, self).__init__(**kwargs)
-
-    def allocate_constants(self):
-        """
-        Allocates constants and local memory to be used by OpenCL.
-        """
-
-        ##########################
-        ##### D2Q25 parameters####
-        ##########################
-        t0 = (4./45.)*(4 + np.sqrt(10))
-        t1 = (3./80.)*(8 - np.sqrt(10))
-        t3 = (1./720.)*(16 - 5*np.sqrt(10))
-
-        w_list = []
-        cx_list = []
-        cy_list = []
-
-        # Mag 0
-        cx_list += [0]
-        cy_list += [0]
-        w_list += [t0*t0]
-
-        # Mag 1
-        cx_list += [0, 0, 1, -1]
-        cy_list += [1, -1, 0, 0]
-        w_list += 4*[t0*t1]
-
-        # Mag sqrt(2)
-        cx_list += [1, 1, -1, -1]
-        cy_list += [1, -1, 1, -1]
-        w_list += 4*[t1*t1]
-
-        # Mag 3
-        cx_list += [3, -3, 0, 0]
-        cy_list += [0, 0, 3, -3]
-        w_list += 4*[t0*t3]
-
-        # Mag sqrt(10)
-        cx_list += [1, 1, -1, -1, 3, 3, -3, -3]
-        cy_list += [3, -3, 3, -3, 1, -1, 1, -1]
-        w_list += 8*[t1*t3]
-
-        # Mag sqrt(18)
-        cx_list += [3, 3, -3, -3]
-        cy_list += [3, -3, 3, -3]
-        w_list += 4*[t3 * t3]
-
-        # Now send everything to disk
-        w = np.array(w_list, order='F', dtype=num_type)  # weights for directions
-        cx = np.array(cx_list, order='F', dtype=int_type)  # direction vector for the x direction
-        cy = np.array(cy_list, order='F', dtype=int_type)  # direction vector for the y direction
-
-        self.cs = num_type(np.sqrt(1. - np.sqrt(2./5.)))  # Speed of sound on the lattice
-        self.num_jumpers = int_type(w.shape[0])  # Number of jumpers: should be 25
-
-        reflect_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
-        for i in range(reflect_index.shape[0]):
-            cur_cx = cx[i]
-            cur_cy = cy[i]
-
-            reflect_cx = -cur_cx
-            reflect_cy = -cur_cy
-
-            opposite = (reflect_cx == cx) & (reflect_cy == cy)
-            reflect_index[i] = np.where(opposite)[0][0]
-
-        # When you go out of bounds in the x direction...and need to reflect back keeping y momentum
-        slip_x_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
-        for i in range(slip_x_index.shape[0]):
-            cur_cx = cx[i]
-            cur_cy = cy[i]
-
-            reflect_cx = -cur_cx
-            reflect_cy = cur_cy
-
-            opposite = (reflect_cx == cx) & (reflect_cy == cy)
-            slip_x_index[i] = np.where(opposite)[0][0]
-
-        # When you go out of bounds in the y direction...and need to reflect back keeping x momentum
-        slip_y_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
-        for i in range(slip_y_index.shape[0]):
-            cur_cx = cx[i]
-            cur_cy = cy[i]
-
-            reflect_cx = cur_cx
-            reflect_cy = -cur_cy
-
-            opposite = (reflect_cx == cx) & (reflect_cy == cy)
-            slip_y_index[i] = np.where(opposite)[0][0]
-
-        self.w = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=w)
-        self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
-        self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
-        self.reflect_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                                       hostbuf=reflect_index)
-        self.slip_x_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                                       hostbuf=slip_x_index)
-        self.slip_y_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                                      hostbuf=slip_y_index)
+#
+# class Simulation_RunnerD2Q25(Simulation_Runner):
+#     def __init__(self, **kwargs):
+#         super(Simulation_RunnerD2Q25, self).__init__(**kwargs)
+#
+#     def allocate_constants(self):
+#         """
+#         Allocates constants and local memory to be used by OpenCL.
+#         """
+#
+#         ##########################
+#         ##### D2Q25 parameters####
+#         ##########################
+#         t0 = (4./45.)*(4 + np.sqrt(10))
+#         t1 = (3./80.)*(8 - np.sqrt(10))
+#         t3 = (1./720.)*(16 - 5*np.sqrt(10))
+#
+#         w_list = []
+#         cx_list = []
+#         cy_list = []
+#
+#         # Mag 0
+#         cx_list += [0]
+#         cy_list += [0]
+#         w_list += [t0*t0]
+#
+#         # Mag 1
+#         cx_list += [0, 0, 1, -1]
+#         cy_list += [1, -1, 0, 0]
+#         w_list += 4*[t0*t1]
+#
+#         # Mag sqrt(2)
+#         cx_list += [1, 1, -1, -1]
+#         cy_list += [1, -1, 1, -1]
+#         w_list += 4*[t1*t1]
+#
+#         # Mag 3
+#         cx_list += [3, -3, 0, 0]
+#         cy_list += [0, 0, 3, -3]
+#         w_list += 4*[t0*t3]
+#
+#         # Mag sqrt(10)
+#         cx_list += [1, 1, -1, -1, 3, 3, -3, -3]
+#         cy_list += [3, -3, 3, -3, 1, -1, 1, -1]
+#         w_list += 8*[t1*t3]
+#
+#         # Mag sqrt(18)
+#         cx_list += [3, 3, -3, -3]
+#         cy_list += [3, -3, 3, -3]
+#         w_list += 4*[t3 * t3]
+#
+#         # Now send everything to disk
+#         w = np.array(w_list, order='F', dtype=num_type)  # weights for directions
+#         cx = np.array(cx_list, order='F', dtype=int_type)  # direction vector for the x direction
+#         cy = np.array(cy_list, order='F', dtype=int_type)  # direction vector for the y direction
+#
+#         self.cs = num_type(np.sqrt(1. - np.sqrt(2./5.)))  # Speed of sound on the lattice
+#         self.num_jumpers = int_type(w.shape[0])  # Number of jumpers: should be 25
+#
+#         reflect_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
+#         for i in range(reflect_index.shape[0]):
+#             cur_cx = cx[i]
+#             cur_cy = cy[i]
+#
+#             reflect_cx = -cur_cx
+#             reflect_cy = -cur_cy
+#
+#             opposite = (reflect_cx == cx) & (reflect_cy == cy)
+#             reflect_index[i] = np.where(opposite)[0][0]
+#
+#         # When you go out of bounds in the x direction...and need to reflect back keeping y momentum
+#         slip_x_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
+#         for i in range(slip_x_index.shape[0]):
+#             cur_cx = cx[i]
+#             cur_cy = cy[i]
+#
+#             reflect_cx = -cur_cx
+#             reflect_cy = cur_cy
+#
+#             opposite = (reflect_cx == cx) & (reflect_cy == cy)
+#             slip_x_index[i] = np.where(opposite)[0][0]
+#
+#         # When you go out of bounds in the y direction...and need to reflect back keeping x momentum
+#         slip_y_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
+#         for i in range(slip_y_index.shape[0]):
+#             cur_cx = cx[i]
+#             cur_cy = cy[i]
+#
+#             reflect_cx = cur_cx
+#             reflect_cy = -cur_cy
+#
+#             opposite = (reflect_cx == cx) & (reflect_cy == cy)
+#             slip_y_index[i] = np.where(opposite)[0][0]
+#
+#         self.w = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=w)
+#         self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
+#         self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
+#         self.reflect_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+#                                        hostbuf=reflect_index)
+#         self.slip_x_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+#                                        hostbuf=slip_x_index)
+#         self.slip_y_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+#                                       hostbuf=slip_y_index)

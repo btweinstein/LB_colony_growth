@@ -1,3 +1,5 @@
 .idea/
 .ipynb_checkpoints/
 *~
+temp_kernels.cl
+*.pyc
