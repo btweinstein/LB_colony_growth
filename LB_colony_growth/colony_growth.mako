@@ -122,17 +122,11 @@ const int buf_y = ly + halo;
 const int buf_z = lz + halo;
 % endif
 
-const int nx_local = get_local_size(0);
-const int ny_local = get_local_size(1);
-% if dimension == 3:
-const int nz_local = get_local_size(2);
-% endif
-
 // Index of thread within our work-group
 % if dimension == 2:
-const int idx_1d = get_spatial_index(lx, ly, nx_local, ny_local);
+const int idx_1d = get_spatial_index(lx, ly, get_local_size(0), get_local_size(1));
 % elif dimension == 3:
-const int idx_2d = get_spatial_index(lx, ly, lz, nx_local, ny_local, nz_local);
+const int idx_2d = get_spatial_index(lx, ly, lz, get_local_size(0), get_local_size(1), get_local_size(2));
 % endif
 
 // Spatial location of the thread within the buffer
@@ -250,16 +244,10 @@ const int spatial_index = get_spatial_index(x, y, z, nx, ny, nz);
 ### Read node type from global memory
 <%def name='read_node_type_from_global()' buffered='True' filter='trim'>
 // Remember, bc-map is larger than nx, ny, nz by a given halo!
-const int x_bc = halo + x;
-const int y_bc = halo + y;
-%if dimension == 3:
-const int z_bc = halo + z;
-%endif
-
 % if dimension == 2:
-int bc_index = get_spatial_index(x_bc, y_bc, nx_bc, ny_bc);
+int bc_index = get_spatial_index(x + halo, y + halo, nx_bc, ny_bc);
 % elif dimension == 3:
-int bc_index = get_spatial_index(x_bc, y_bc, z_bc, nx_bc, ny_bc, nz_bc);
+int bc_index = get_spatial_index(x + halo, y + halo, z + halo, nx_bc, ny_bc, nz_bc);
 % endif
 
 const int node_type = bc_map[bc_index];
@@ -416,8 +404,7 @@ ${num_type} f_after_collision = f_global[jump_index]*(1-omega) + omega*feq_globa
 </%def>
 
 <%def name='move()' buffered='True' filter='trim'>
-// After colliding, stream to the appropriate location. Needed to write collision to f6
-
+// After colliding, stream to the appropriate location.
 ${define_all_c()}
 
 ${define_streamed_index_local()}
