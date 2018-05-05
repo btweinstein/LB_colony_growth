@@ -20,13 +20,16 @@ parent_dir = os.path.dirname(file_dir)
 
 # Required for allocating local memory
 num_size = ct.sizeof(ct.c_double)
+
 num_type = np.double
 int_type = np.int32
 
 # Constants for defining the node map...
-FLUID_NODE = int_type(0)
-WALL_NODE = int_type(1)
-NOT_IN_DOMAIN = int_type(2)
+OUTSIDE_DOMAIN = int_type(-1)
+REGULAR = int_type(0)
+PERIODIC_BC = int_type(1)
+NOSLIP_BC = int_type(2)
+SLIP_BC = int_type(3)
 
 def get_divisible_global(global_size, local_size):
     """
@@ -197,19 +200,39 @@ class Fluid(object):
             sim.cs
         ).wait()
 
+class Simulation_Runner(object):
+    """
+    Everything is in dimensionless units. It's just easier.
+    """
 
-class DLA_Colony(object):
+    def __init__(self, nx=100, ny=100, bc_map=None,
+                 L_lb=100, T_lb=1.,
+                 num_populations=1,
+                 two_d_local_size=(32,32), use_interop=False,
+                 check_max_ulb=False, mach_tolerance=0.1,
+                 context = None):
 
-    def __init__(self, ctx_info):
+        self.nx = int_type(nx)
+        self.ny = int_type(ny)
 
+        self.L_lb = int_type(L_lb) # The resolution of the simulation
+        self.T_lb = num_type(T_lb) # How many steps it takes to reach T=1
 
+        self.delta_x = 1./self.L_lb
+        self.delta_t = 1./self.T_lb
+
+        # Book-keeping
+        self.num_populations = int_type(num_populations)
+
+        self.check_max_ulb = check_max_ulb
+        self.mach_tolerance = mach_tolerance
 
         # Create global & local sizes appropriately
-        self.local_size = ctx_info['']        # The local size to be used for 2-d workgroups
-        self.global_size = get_divisible_global((self.nx, self.ny), self.two_d_local_size)
+        self.two_d_local_size = two_d_local_size        # The local size to be used for 2-d workgroups
+        self.two_d_global_size = get_divisible_global((self.nx, self.ny), self.two_d_local_size)
 
-        print 'global size:' , self.global_size
-        print 'local size:' , self.local_size
+        print '2d global:' , self.two_d_global_size
+        print '2d local:' , self.two_d_local_size
 
         # Initialize the opencl environment
         self.context = context     # The pyOpenCL context
