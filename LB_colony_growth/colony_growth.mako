@@ -46,21 +46,21 @@ __constant int cz_nearest[6] = {0,  0, 0, 0, 1,-1};
 #define ALLELE_${i} ${-1*i}
 %endfor
 
-inline int get_spatial_index(
+inline int get_spatial_index_2(
     const int x, const int y,
     const int x_size, const int y_size)
 {
     return y*x_size + x;
 }
 
-inline int get_spatial_index(
+inline int get_spatial_index_3(
     const int x, const int y, const int z,
     const int x_size, const int y_size, const int z_size)
 {
     return z*y_size*x_size + y*x_size + x;
 }
 
-inline int get_spatial_index(
+inline int get_spatial_index_4(
     int x, int y, int z, int jump_id,
     int x_size, int y_size, int z_size, int num_jumpers)
 {
@@ -124,16 +124,16 @@ const int buf_z = lz + halo;
 
 // Index of thread within our work-group
 % if dimension == 2:
-const int idx_1d = get_spatial_index(lx, ly, get_local_size(0), get_local_size(1));
+const int idx_1d = get_spatial_index_2(lx, ly, get_local_size(0), get_local_size(1));
 % elif dimension == 3:
-const int idx_2d = get_spatial_index(lx, ly, lz, get_local_size(0), get_local_size(1), get_local_size(2));
+const int idx_2d = get_spatial_index_3(lx, ly, lz, get_local_size(0), get_local_size(1), get_local_size(2));
 % endif
 
 // Spatial location of the thread within the buffer
 % if dimension == 2:
-const int local_index = get_spatial_index(buf_x, buf_y, buf_nx, buf_ny);
+const int local_index = get_spatial_index_2(buf_x, buf_y, buf_nx, buf_ny);
 % elif dimension == 3:
-const int local_index = get_spatial_index(buf_x, buf_y, buf_z, buf_nx, buf_ny, buf_nz);
+const int local_index = get_spatial_index_3(buf_x, buf_y, buf_z, buf_nx, buf_ny, buf_nz);
 % endif
 
 </%def>
@@ -150,7 +150,7 @@ if (idx_1D < buf_nx) {
         % if var_name is not None:
         // If in the domain...
         if((temp_x < nx) && (temp_x > 0) && (temp_y < ny) && (temp_y > 0)){
-            int temp_index = get_spatial_index(temp_x, temp_y, nx, ny);
+            int temp_index = get_spatial_index_2(temp_x, temp_y, nx, ny);
             value = ${var_name}[temp_index];
         }
         % endif
@@ -169,7 +169,7 @@ if (idx_2d < buf_ny * buf_nx) {
         ${num_type} value = ${default_value};
         % if var_name is not None:
         if((temp_x < nx) && (temp_x > 0) && (temp_y < ny) && (temp_y > 0) && (temp_z < nz) && (temp_z > 0)){
-            int temp_index = get_spatial_index(temp_x, temp_y, temp_z, nx, ny, nz);
+            int temp_index = get_spatial_index_3(temp_x, temp_y, temp_z, nx, ny, nz);
             value = ${var_name}[temp_index];
         }
         % endif
@@ -190,7 +190,7 @@ if (idx_1D < buf_nx) {
         // If in the bc_map...
         int value = ${default_value};
         if((temp_x < nx_bc) && (temp_x > 0) && (temp_y < ny_bc) && (temp_y > 0)){
-            int temp_index = get_spatial_index(temp_x, temp_y, nx_bc, ny_bc);
+            int temp_index = get_spatial_index_2(temp_x, temp_y, nx_bc, ny_bc);
             value = ${var_name}[temp_index];
         }
 
@@ -208,7 +208,7 @@ if (idx_2d < buf_ny * buf_nx) {
         // If in the bc_map...
         int value = ${default_value};
         if((temp_x < nx_bc) && (temp_x > 0) && (temp_y < ny_bc) && (temp_y > 0) && (temp_z < nz_bc) && (temp_z > 0)){
-            int temp_index = get_spatial_index(temp_x, temp_y, temp_z, nx_bc, ny_bc, nz_bc);
+            int temp_index = get_spatial_index_3(temp_x, temp_y, temp_z, nx_bc, ny_bc, nz_bc);
             value = ${var_name}[temp_index];
         }
 
@@ -225,10 +225,10 @@ if (idx_2d < buf_ny * buf_nx) {
 const int x = get_global_id(0);
 const int y = get_global_id(1);
 % if dimension == 2:
-const int spatial_index = get_spatial_index(x, y, nx, ny);
+const int spatial_index = get_spatial_index_2(x, y, nx, ny);
 % else:
 const int z = get_global_id(2);
-const int spatial_index = get_spatial_index(x, y, z, nx, ny, nz);
+const int spatial_index = get_spatial_index_3(x, y, z, nx, ny, nz);
 % endif
 </%def>
 
@@ -245,9 +245,9 @@ const int spatial_index = get_spatial_index(x, y, z, nx, ny, nz);
 <%def name='read_node_type_from_global()' buffered='True' filter='trim'>
 // Remember, bc-map is larger than nx, ny, nz by a given halo!
 % if dimension == 2:
-int bc_index = get_spatial_index(x + halo, y + halo, nx_bc, ny_bc);
+int bc_index = get_spatial_index_2(x + halo, y + halo, nx_bc, ny_bc);
 % elif dimension == 3:
-int bc_index = get_spatial_index(x + halo, y + halo, z + halo, nx_bc, ny_bc, nz_bc);
+int bc_index = get_spatial_index_3(x + halo, y + halo, z + halo, nx_bc, ny_bc, nz_bc);
 % endif
 
 const int node_type = bc_map[bc_index];
@@ -257,9 +257,9 @@ const int node_type = bc_map[bc_index];
 <%def name='define_jump_index(jump_id="jump_id")' buffered='True' filter='trim'>
 
 % if dimension == 2:
-const int jump_index = get_spatial_index(x, y, ${jump_id}, nx, ny, num_jumpers);
+const int jump_index = get_spatial_index_3(x, y, ${jump_id}, nx, ny, num_jumpers);
 % elif dimension == 3:
-const int jump_index = get_spatial_index(x, y, z, ${jump_id}, nx, ny, nz, num_jumpers);
+const int jump_index = get_spatial_index_4(x, y, z, ${jump_id}, nx, ny, nz, num_jumpers);
 % endif
 
 </%def>
@@ -267,10 +267,10 @@ const int jump_index = get_spatial_index(x, y, z, ${jump_id}, nx, ny, nz, num_ju
 
 <%def name='define_all_c(jump_id="jump_id")' buffered='True' filter='trim'>
 
-const int cur_cx = c_vec[get_spatial_index(0, ${jump_id}, ${dimension}, num_jumpers)];
-const int cur_cy = c_vec[get_spatial_index(1, ${jump_id}, ${dimension}, num_jumpers)];
+const int cur_cx = c_vec[get_spatial_index_2(0, ${jump_id}, ${dimension}, num_jumpers)];
+const int cur_cy = c_vec[get_spatial_index_2(1, ${jump_id}, ${dimension}, num_jumpers)];
 %if dimension == 3:
-const int cur_cz = c_vec[get_spatial_index(2, jump_id, ${dimension}, num_jumpers)];
+const int cur_cz = c_vec[get_spatial_index_2(2, jump_id, ${dimension}, num_jumpers)];
 
 %endif
 </%def>
@@ -279,9 +279,9 @@ const int cur_cz = c_vec[get_spatial_index(2, jump_id, ${dimension}, num_jumpers
 <%def name='define_streamed_index_local()' buffered='True' filter='trim'>
 
 % if dimension == 2:
-int streamed_index_local = get_spatial_index(buf_x + cur_cx, buf_y + cur_cy, buf_nx, buf_ny);
+int streamed_index_local = get_spatial_index_2(buf_x + cur_cx, buf_y + cur_cy, buf_nx, buf_ny);
 % elif dimension == 3:
-int streamed_index_local = get_spatial_index(
+int streamed_index_local = get_spatial_index_3(
     buf_x + cur_cx, buf_y + cur_cy, buf_z + cur_cz,
     buf_nx, buf_ny, buf_nz
 );
@@ -292,9 +292,9 @@ int streamed_index_local = get_spatial_index(
 <%def name='define_streamed_index_global(identifier="int")' buffered='True' filter='trim'>
 
 % if dimension == 2:
-${identifier} streamed_index_global = get_spatial_index(x + cur_cx, y + cur_cy, nx, ny);
+${identifier} streamed_index_global = get_spatial_index_2(x + cur_cx, y + cur_cy, nx, ny);
 % elif dimension == 3:
-${identifier} streamed_index_global = get_spatial_index(
+${identifier} streamed_index_global = get_spatial_index_3(
     x + cur_cx, y + cur_cy, z + cur_cz,
     nx, ny, nz
 );
@@ -309,23 +309,31 @@ ${identifier} streamed_index_global = get_spatial_index(
     kernel_arguments[cur_kernel] = []
     cur_kernel_list = kernel_arguments[cur_kernel]
 
+    # Global variables
     cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map_global'])
-    cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
     cur_kernel_list.append(['f', '__global '+num_type+' *f_global'])
     cur_kernel_list.append(['feq', '__global __read_only '+num_type+' *feq_global'])
+    cur_kernel_list.append(['rho', '__global '+num_type+' *rho_global'])
+
+    # Variables that are read into local memory
+    cur_kernel_list.append(['local_mem', '__local '+num_type+' *rho_local'])
+    cur_kernel_list.append(['local_mem', '__local '+num_type+' *bc_map_local'])
+
+    # Local memory info
+    cur_kernel_list.append(['buf_nx', 'const int buf_nx'])
+    cur_kernel_list.append(['buf_ny', 'const int buf_ny'])
+    cur_kernel_list.append(['buf_nz', 'const int buf_nz'])
+
+    # Specific parameter choices
+    cur_kernel_list.append(['k', 'const '+num_type+' k'])
+    cur_kernel_list.append(['D', 'const '+num_type+' D'])
+
+    # Lattice velocity choices
+    cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
     cur_kernel_list.append(['omega', 'const '+num_type+' omega'])
     cur_kernel_list.append(['c_vec', '__constant int *c_vec'])
     cur_kernel_list.append(['c_mag', '__constant '+num_type+' *c_mag'])
     cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
-    cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
-    cur_kernel_list.append(['rho', '__global '+num_type+' *rho_global'])
-    cur_kernel_list.append(['buf_nx', 'const int buf_nx'])
-    cur_kernel_list.append(['buf_ny', 'const int buf_ny'])
-    cur_kernel_list.append(['buf_nz', 'const int buf_nz'])
-    cur_kernel_list.append(['local_mem', '__local '+num_type+' *rho_local'])
-    cur_kernel_list.append(['local_mem', '__local '+num_type+' *bc_map_local'])
-    cur_kernel_list.append(['k', 'const '+num_type+' k'])
-    cur_kernel_list.append(['D', 'const '+num_type+' D'])
 %>
 
 __kernel void
@@ -421,15 +429,16 @@ if (streamed_bc == FLUID_NODE){
 else if (streamed_bc == WALL_NODE){ // Bounceback; impenetrable boundary
     int reflect_id = reflect_list[jump_id];
     % if dimension == 2:
-    int reflect_index = get_spatial_index(x, y, reflect_id, nx, ny, num_jumpers);
+    int reflect_index = get_spatial_index_3(x, y, reflect_id, nx, ny, num_jumpers);
     % elif dimension == 3:
-    int reflect_index = get_spatial_index(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
+    int reflect_index = get_spatial_index_4(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
     % endif
 
     f_streamed_global[reflect_index] = f_after_collision;
 
     // The streamed part collides without moving.
-    streamed_index_global = get_spatial_index(x, y, z, jump_id, nx, ny, nz, num_jumpers);
+
+    streamed_index_global = jump_index;
 }
 
 else if (streamed_bc < 0){ // You are at a population node
@@ -443,15 +452,15 @@ else if (streamed_bc < 0){ // You are at a population node
     ${num_type} cur_w = w[jump_id];
     int reflect_id = reflect_list[jump_id];
     % if dimension == 2:
-    int reflect_index = get_spatial_index(x, y, reflect_id, nx, ny, num_jumpers);
+    int reflect_index = get_spatial_index_3(x, y, reflect_id, nx, ny, num_jumpers);
     % elif dimension == 3:
-    int reflect_index = get_spatial_index(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
+    int reflect_index = get_spatial_index_4(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
     % endif
 
     f_streamed_global[reflect_index] = -f_after_collision + 2*cur_w*rho_wall;
 
     // The streamed part collides without moving.
-    streamed_index_global = get_spatial_index(x, y, z, jump_id, nx, ny, nz, num_jumpers);
+    streamed_index_global = jump_index;
 }
 
 //Need to write to the streamed buffer...otherwise out of sync problems will occur
