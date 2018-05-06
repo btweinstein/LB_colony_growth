@@ -501,15 +501,9 @@ update_after_streaming(
     ${if_thread_in_domain() | wrap1}{
         // Figure out what type of node is present
         ${read_node_type_from_global() | wrap2}
-        if (node_type == FLUID_NODE){
-            ${update_hydro() | wrap3}
-            ${update_feq() | wrap3}
-        }
-        else{
-            // No concentration is present...act accordingly.
-            rho_global[spatial_index] = 0;
-            // We do not bother updating f & feq; we are interested in the macro variables.
-        }
+
+        ${update_hydro() | wrap3}
+        ${update_feq() | wrap3}
     }
 }
 
@@ -524,7 +518,7 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
 
     new_rho += cur_f;
 }
-
+if (node_type != FLUID_NODE) new_rho = 0; // No density if not in the fluid
 rho_global[spatial_index] = new_rho;
 </%def>
 
