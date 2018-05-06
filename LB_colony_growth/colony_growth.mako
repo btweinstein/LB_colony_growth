@@ -485,12 +485,6 @@ f_streamed_global[streamed_index_global] = f_after_collision;
     # Velocity set info
     cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
     cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
-
-    # Local memory info
-    cur_kernel_list.append(['buf_nx', 'const int buf_nx'])
-    cur_kernel_list.append(['buf_ny', 'const int buf_ny'])
-    if dimension == 3:
-        cur_kernel_list.append(['buf_nz', 'const int buf_nz'])
 %>
 
 __kernel void
