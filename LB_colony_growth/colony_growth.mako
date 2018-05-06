@@ -140,10 +140,10 @@ const int local_index = get_spatial_index_3(buf_x, buf_y, buf_z, buf_nx, buf_ny,
 
 <%def name='read_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
 % if dimension==2:
-if (idx_1D < buf_nx) {
+if (idx_1d < buf_nx) {
     for (int row = 0; row < buf_ny; row++) {
         // Read in 1-d slices
-        int temp_x = buf_corner_x + idx_1D;
+        int temp_x = buf_corner_x + idx_1d;
         int temp_y = buf_corner_y + row;
 
         ${num_type} value = ${default_value};
@@ -155,7 +155,7 @@ if (idx_1D < buf_nx) {
         }
         % endif
 
-        ${local_mem}[row*buf_nx + idx_1D] = value;
+        ${local_mem}[row*buf_nx + idx_1d] = value;
     }
 }
 % elif dimension == 3:
@@ -181,10 +181,10 @@ if (idx_2d < buf_ny * buf_nx) {
 
 <%def name='read_bc_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
 % if dimension==2:
-if (idx_1D < buf_nx) {
+if (idx_1d < buf_nx) {
     for (int row = 0; row < buf_ny; row++) {
         // Read in 1-d slices
-        int temp_x = buf_corner_x + idx_1D + halo;
+        int temp_x = buf_corner_x + idx_1d + halo;
         int temp_y = buf_corner_y + row + halo;
 
         // If in the bc_map...
@@ -194,7 +194,7 @@ if (idx_1D < buf_nx) {
             value = ${var_name}[temp_index];
         }
 
-        ${local_mem}[row*buf_nx + idx_1D] = value;
+        ${local_mem}[row*buf_nx + idx_1d] = value;
     }
 }
 % elif dimension == 3:
