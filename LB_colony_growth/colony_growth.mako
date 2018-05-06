@@ -250,7 +250,7 @@ int bc_index = get_spatial_index_2(x + halo, y + halo, nx_bc, ny_bc);
 int bc_index = get_spatial_index_3(x + halo, y + halo, z + halo, nx_bc, ny_bc, nz_bc);
 % endif
 
-const int node_type = bc_map[bc_index];
+const int node_type = bc_map_global[bc_index];
 </%def>
 
 
@@ -312,8 +312,10 @@ ${identifier} streamed_index_global = get_spatial_index_3(
     # Global variables
     cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map_global'])
     cur_kernel_list.append(['f', '__global '+num_type+' *f_global'])
+    cur_kernel_list.append(['f_streamed', '__global '+num_type+' *f_streamed_global'])
     cur_kernel_list.append(['feq', '__global __read_only '+num_type+' *feq_global'])
     cur_kernel_list.append(['rho', '__global '+num_type+' *rho_global'])
+    cur_kernel_list.append(['absorbed_mass', '__global '+num_type+' *absorbed_mass_global'])
 
     # Variables that are read into local memory
     cur_kernel_list.append(['local_mem', '__local '+num_type+' *rho_local'])
@@ -322,7 +324,8 @@ ${identifier} streamed_index_global = get_spatial_index_3(
     # Local memory info
     cur_kernel_list.append(['buf_nx', 'const int buf_nx'])
     cur_kernel_list.append(['buf_ny', 'const int buf_ny'])
-    cur_kernel_list.append(['buf_nz', 'const int buf_nz'])
+    if dimension == 3:
+        cur_kernel_list.append(['buf_nz', 'const int buf_nz'])
 
     # Specific parameter choices
     cur_kernel_list.append(['k', 'const '+num_type+' k'])
@@ -334,6 +337,7 @@ ${identifier} streamed_index_global = get_spatial_index_3(
     cur_kernel_list.append(['c_vec', '__constant int *c_vec'])
     cur_kernel_list.append(['c_mag', '__constant '+num_type+' *c_mag'])
     cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
+    cur_kernel_list.append(['reflect_list', '__constant '+num_type+' *reflect_list'])
 %>
 
 __kernel void
@@ -472,6 +476,21 @@ f_streamed_global[streamed_index_global] = f_after_collision;
     cur_kernel = 'update_after_streaming'
     kernel_arguments[cur_kernel] = []
     cur_kernel_list = kernel_arguments[cur_kernel]
+
+    cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map_global'])
+    cur_kernel_list.append(['f', '__global '+num_type+' *f_global'])
+    cur_kernel_list.append(['feq', '__global __read_only '+num_type+' *feq_global'])
+    cur_kernel_list.append(['rho', '__global '+num_type+' *rho_global'])
+
+    # Velocity set info
+    cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
+    cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
+
+    # Local memory info
+    cur_kernel_list.append(['buf_nx', 'const int buf_nx'])
+    cur_kernel_list.append(['buf_ny', 'const int buf_ny'])
+    if dimension == 3:
+        cur_kernel_list.append(['buf_nz', 'const int buf_nz'])
 %>
 
 __kernel void
@@ -536,6 +555,30 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
     cur_kernel = 'reproduce'
     kernel_arguments[cur_kernel] = []
     cur_kernel_list = kernel_arguments[cur_kernel]
+
+    cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map_global'])
+    cur_kernel_list.append(['streamed_bc_map', '__global int *streamed_bc_map_global'])
+    cur_kernel_list.append(['absorbed_mass', '__global '+num_type+' *absorbed_mass_global'])
+    cur_kernel_list.append(['rand', '__global '+num_type+' *rand_global'])
+
+    # Pointer that determines whether everyone is done reproducing
+    cur_kernel_list.append(['can_reproduce_pointer', '__global int *can_reproduce_global'])
+
+    # Input parameters
+    cur_kernel_list.append(['m_reproduce', 'const '+num_type+' m_reproduce'])
+
+    # Velocity set info
+    cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
+    cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
+    cur_kernel_list.append(['c_vec', '__constant int *c_vec'])
+
+    # Local memory info
+    cur_kernel_list.append(['local_mem', '__local '+num_type+' *bc_map_local'])
+
+    cur_kernel_list.append(['buf_nx', 'const int buf_nx'])
+    cur_kernel_list.append(['buf_ny', 'const int buf_ny'])
+    if dimension == 3:
+        cur_kernel_list.append(['buf_nz', 'const int buf_nz'])
 %>
 
 __kernel void
@@ -576,13 +619,14 @@ reproduce(
 // Calculate the normalization constant
 ${num_type} norm_constant = 0;
 
+bool can_reproduce = false;
+
 for(int jump_id=0; jump_id < num_jumpers; jump_id++){
     ${define_all_c() | wrap1}
 
     ${define_streamed_index_local() | wrap1}
 
     const int streamed_node_type = bc_map_local[streamed_index_local];
-    bool can_reproduce = false;
 
     if (streamed_node_type == FLUID_NODE){ // Population can expand into this!
         norm_constant += w[jump_id];
@@ -611,14 +655,14 @@ if (can_reproduce){
                 //TODO: This can probably be sped up by doing comparisons with local, *then* going to global...
                 // Copy your node type into the new node atomically IF the fluid node is still there...
                 const int prev_type = atomic_cmpxchg(
-                    &reproduce_bc_map_global[streamed_index_global],
+                    &streamed_bc_map_global[streamed_index_global],
                     FLUID_NODE,
                     node_type
                 );
 
                 // If successful, subtract mass, because you reproduced!
                 if (prev_type == FLUID_NODE){
-                    mass_absorbed_global[spatial_index] -= m0;
+                    absorbed_mass_global[spatial_index] -= m_reproduce;
                 } // Otherwise, someone reproduced and blocked you! Try again next iteration...
             }
         }
