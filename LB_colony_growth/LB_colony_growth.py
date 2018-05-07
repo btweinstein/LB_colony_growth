@@ -210,6 +210,24 @@ class Velocity_Set(object):
         self.kernel_args['buf_ny'] = self.buf_ny
         self.kernel_args['buf_nz'] = self.buf_nz
 
+    def create_local_memory(self, dtype):
+
+        num_size = None
+        if dtype == 'double':
+            num_size = ct.sizeof(ct.c_double)
+        elif dtype == 'float':
+            num_size = ct.sizeof(ct.c_float)
+        elif num_type == 'int':
+            num_size = ct.sizeof(ct.c_int)
+
+        num_elements = self.buf_nx * self.buf_ny
+        if self.buf_nz is not None:
+            num_elements *= self.buf_nz
+
+        local = cl.LocalMemory(num_size * num_elements)
+
+        return local
+
 class D2Q9(Velocity_Set):
 
     def __init__(self, ctx_info, context, kernel_args):
