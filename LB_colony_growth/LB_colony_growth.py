@@ -422,7 +422,7 @@ class DLA_Colony(object):
         self.feq = cl.array.to_device(self.queue, feq_host)
         self.kernel_args['feq'] = self.feq.data
 
-        self.init_feq = Autogen_Kernel('init_feq', self.kernels.init_feq, self.kernel_args, self.ctx_info['kernel_arguments'])
+        self.init_feq = Autogen_Kernel('init_feq', self.kernels.init_feq, self)
 
         self.init_feq.run().wait() # Based on the input hydrodynamic fields, create feq
 
@@ -438,13 +438,10 @@ class DLA_Colony(object):
         self.init_pop(amplitude=f_rand_amp) # Based on feq, create the hopping non-equilibrium fields
 
         # Generate the rest of the needed kernels
-        ctx_kernel_args = self.ctx_info['kernel_arguments']
-        self.collide_and_propagate = Autogen_Kernel('collide_and_propagate', self.kernels.collide_and_propagate,
-                                                    self.kernel_args, ctx_kernel_args)
-        self.update_after_streaming = Autogen_Kernel('update_after_streaming', self.kernels.update_after_streaming,
-                                                    self.kernel_args, ctx_kernel_args)
-        self.reproduce = Autogen_Kernel('reproduce', self.kernels.reproduce,
-                                                     self.kernel_args, ctx_kernel_args)
+        ker = self.kernels
+        self.collide_and_propagate = Autogen_Kernel('collide_and_propagate', ker.collide_and_propagate, self)
+        self.update_after_streaming = Autogen_Kernel('update_after_streaming', ker.update_after_streaming, self)
+        self.reproduce = Autogen_Kernel('reproduce', ker.reproduce, self)
 
 
     def get_dimension_tuple(self):
