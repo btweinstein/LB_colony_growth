@@ -230,10 +230,8 @@ class D2Q9(Velocity_Set):
         cy = np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=int_type)  # direction vector for the y direction
 
         c_vec = np.array([cx, cy])
-        print c_vec.shape
 
         self.cs = num_type(1. / np.sqrt(3))  # Speed of sound on the lattice
-
         self.num_jumpers = int_type(9)  # Number of jumpers for the D2Q9 lattice: 9
 
         # Create arrays for bounceback and zero-shear/symmetry conditions
@@ -272,16 +270,18 @@ class D2Q9(Velocity_Set):
             opposite = (reflect_cx == cx) & (reflect_cy == cy)
             slip_y_index[i] = np.where(opposite)[0][0]
 
+        slip_index = np.array([slip_x_index, slip_y_index])
+
+        # Define all necessary constant buffers
+
         self.w = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=w)
-        self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
-        self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
+        self.c_vec = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=c_vec)
         self.reflect_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=reflect_index)
-        self.slip_x_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=slip_x_index)
-        self.slip_y_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=slip_y_index)
+        self.slip_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=slip_index)
 
 class DLA_Colony(object):
 
-    def __init__(self, ctx_info, model=None, context=None, use_interop=False):
+    def __init__(self, ctx_info, velocity_set, context=None, use_interop=False):
 
         self.ctx_info = ctx_info
 
@@ -292,24 +292,19 @@ class DLA_Colony(object):
         print 'global size:' , self.global_size
         print 'local size:' , self.local_size
 
+        # Initialize the velocity set...and other important context-wide
+        # variables.
+        self.velocity_set = None
+        if velocity_set == 'D2Q9':
+            self.velocity_set = D2Q9()
+
+
         # Initialize the opencl environment
         self.context = context     # The pyOpenCL context
         self.queue = None       # The queue used to issue commands to the desired device
         self.kernels = None     # Compiled OpenCL kernels
         self.use_interop = use_interop
         self.init_opencl()      # Initializes all items required to run OpenCL code
-
-        # Allocate constants & local memory for opencl
-        self.w = None
-        self.cx = None
-        self.cy = None
-        self.cs = None
-        self.num_jumpers = None
-        self.reflect_index = None
-        self.slip_x_index = None
-        self.slip_y_index = None
-
-        self.allocate_constants()
 
         ## Initialize the node map...user is responsible for passing this in correctly.
         # The node map can have a DIFFERENT nx and ny...so we will have to translate between the two
@@ -452,67 +447,6 @@ class DLA_Colony(object):
             fi.write(buf.getvalue())
 
         self.kernels = cl.Program(self.context, buf.getvalue()).build(options='')
-
-    def allocate_constants(self):
-        """
-        Allocates constants and local memory to be used by OpenCL.
-        """
-
-        ##########################
-        ##### D2Q9 parameters ####
-        ##########################
-        w = np.array([4. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 36.,
-                      1. / 36., 1. / 36., 1. / 36.], order='F', dtype=num_type)  # weights for directions
-        cx = np.array([0, 1, 0, -1, 0, 1, -1, -1, 1], order='F', dtype=int_type)  # direction vector for the x direction
-        cy = np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=int_type)  # direction vector for the y direction
-        self.cs = num_type(1. / np.sqrt(3))  # Speed of sound on the lattice
-
-        self.num_jumpers = int_type(9)  # Number of jumpers for the D2Q9 lattice: 9
-
-        # Create arrays for bounceback and zero-shear/symmetry conditions
-        reflect_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
-        for i in range(reflect_index.shape[0]):
-            cur_cx = cx[i]
-            cur_cy = cy[i]
-
-            reflect_cx = -cur_cx
-            reflect_cy = -cur_cy
-
-            opposite = (reflect_cx == cx) & (reflect_cy == cy)
-            reflect_index[i] = np.where(opposite)[0][0]
-
-        # When you go out of bounds in the x direction...and need to reflect back keeping y momentum
-        slip_x_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
-        for i in range(slip_x_index.shape[0]):
-            cur_cx = cx[i]
-            cur_cy = cy[i]
-
-            reflect_cx = -cur_cx
-            reflect_cy = cur_cy
-
-            opposite = (reflect_cx == cx) & (reflect_cy == cy)
-            slip_x_index[i] = np.where(opposite)[0][0]
-
-        # When you go out of bounds in the y direction...and need to reflect back keeping x momentum
-        slip_y_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
-        for i in range(slip_y_index.shape[0]):
-            cur_cx = cx[i]
-            cur_cy = cy[i]
-
-            reflect_cx = cur_cx
-            reflect_cy = -cur_cy
-
-            opposite = (reflect_cx == cx) & (reflect_cy == cy)
-            slip_y_index[i] = np.where(opposite)[0][0]
-
-        self.w = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=w)
-        self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
-        self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
-        self.reflect_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=reflect_index)
-        self.slip_x_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                                       hostbuf=slip_x_index)
-        self.slip_y_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
-                                      hostbuf=slip_y_index)
 
     def add_eating_rate(self, eater_index, eatee_index, rate, eater_cutoff):
         """
