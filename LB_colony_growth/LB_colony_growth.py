@@ -307,9 +307,10 @@ class D2Q9(Velocity_Set):
 
 class DLA_Colony(object):
 
-    def __init__(self, ctx_info=None, velocity_set=None, bc_map = None,
+    def __init__(self, ctx_info=None, velocity_set=None,
+                 bc_map = None, rho=None,
                  k_list = None, m_reproduce_list=None, D = None,
-                 context=None, use_interop=False):
+                 context=None, use_interop=False, f_rand_amp = 1e-6):
 
         self.ctx_info = ctx_info
         self.kernel_args = {}
@@ -367,7 +368,7 @@ class DLA_Colony(object):
         print 'global_size_bc:', self.global_size_bc
 
         ## Initialize hydrodynamic variables
-        rho_host = np.zeros(self.get_dimension_tuple(), dtype=num_type, order='F')
+        rho_host = np.array(rho, dtype=num_type, order='F')
         self.rho = cl.array.to_device(self.queue, rho_host)
         self.kernel_args['rho'] = self.rho.data
 
@@ -376,12 +377,18 @@ class DLA_Colony(object):
         self.feq = cl.array.to_device(self.queue, feq_host)
         self.kernel_args['feq'] = self.feq.data
 
+        self.init_feq() # Based on the input hydrodynamic fields, create feq
+
+
         f_host = np.zeros(self.get_jumper_tuple(), dtype=num_type, order='F')
         self.f = cl.array.to_device(self.queue, f_host)
         self.f_streamed = self.f.copy()
 
         self.kernel_args['f'] = self.f.data
         self.kernel_args['f_streamed'] = self.f_streamed.data
+
+        # Now initialize the nonequilibrium f
+        self.init_pop(amplitude=f_rand_amp) # Based on feq, create the hopping non-equilibrium fields
 
 
     def get_dimension_tuple(self):
@@ -454,23 +461,6 @@ class DLA_Colony(object):
 
         self.kernels = cl.Program(self.context, buf.getvalue()).build(options='')
 
-    def initialize(self, rho_arr, f_amp = 0.0):
-        """
-        ASSUMES THAT THE BARYCENTRIC VELOCITY IS ALREADY SET
-        """
-
-        #### DENSITY #####
-        rho_host = self.rho.get()
-
-        rho_host[...] = rho_arr
-        self.rho = cl.array.to_device(self.queue, rho_host)
-
-        #### UPDATE HOPPERS ####
-        self.update_feq() # Based on the hydrodynamic fields, create feq
-
-        # Now initialize the nonequilibrium f
-        self.init_pop(amplitude=f_amp) # Based on feq, create the hopping non-equilibrium fields
-
     def init_pop(self, amplitude=0.001):
         """Based on feq, create the initial population of jumpers."""
 
@@ -483,6 +473,7 @@ class DLA_Colony(object):
 
         # Now send f to the GPU
         self.f = cl.array.to_device(self.queue, f_host)
+        self.f_streamed = self.f.copy()
 
 
     def add_eating_rate(self, eater_index, eatee_index, rate, eater_cutoff):
