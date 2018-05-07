@@ -212,6 +212,7 @@ class Velocity_Set(object):
         self.num_jumpers = None
         self.w = None
         self.c_vec = None
+        self.c_mag = None
         self.cs = None
 
         self.reflect_index = None
@@ -222,6 +223,7 @@ class Velocity_Set(object):
         self.nx_bc = None
         self.ny_bc = None
         self.nz_bc = None
+        self.bc_size = None
 
         self.buf_nx = None
         self.buf_ny = None
@@ -232,6 +234,7 @@ class Velocity_Set(object):
         self.kernel_args['num_jumpers'] = self.num_jumpers
         self.kernel_args['w'] = self.w
         self.kernel_args['c_vec'] = self.c_vec
+        self.kernel_args['c_mag'] = self.c_mag
         self.kernel_args['cs'] = self.cs
 
         self.kernel_args['reflect_index'] = self.reflect_index
@@ -265,6 +268,7 @@ class D2Q9(Velocity_Set):
         cy = np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=int_type)  # direction vector for the y direction
 
         c_vec = np.array([cx, cy])
+        c_mag = np.sqrt(np.sum(c_vec**2, axis=0))
 
         self.cs = num_type(1. / np.sqrt(3))  # Speed of sound on the lattice
         self.num_jumpers = int_type(9)  # Number of jumpers for the D2Q9 lattice: 9
@@ -311,6 +315,7 @@ class D2Q9(Velocity_Set):
 
         self.w = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=w)
         self.c_vec = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=c_vec)
+        self.c_mag = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=c_mag)
         self.reflect_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=reflect_index)
         self.slip_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=slip_index)
 
@@ -323,6 +328,8 @@ class D2Q9(Velocity_Set):
         self.nx_bc = int_type(self.ctx_info['nx'] + 2*self.halo)
         self.ny_bc = int_type(self.ctx_info['ny'] + 2*self.halo)
         self.nz_bc = None
+
+        self.bc_size = (self.nx_bc, self.ny_bc)
 
         # Now that everything is defined...set the corresponding kernel definitions
         self.set_kernel_args()
@@ -360,25 +367,28 @@ class DLA_Colony(object):
         self.bc_map = cl.array.to_device(self.queue, bc_map)
         self.bc_map_streamed = self.bc_map.copy()
 
-        self.kernel_args['bc_map'] = self.bc_map
-        self.kernel_args['bc_map_streamed'] = self.bc_map_streamed
+        self.kernel_args['bc_map'] = self.bc_map.data
+        self.kernel_args['bc_map_streamed'] = self.bc_map_streamed.data
+
+        self.global_size_bc = get_divisible_global(self.velocity_set.bc_size, self.local_size)
+        print 'global_size_bc:', self.global_size_bc
 
         ## Initialize hydrodynamic variables
         rho_host = np.zeros(self.get_dimension_tuple(), dtype=num_type, order='F')
         self.rho = cl.array.to_device(self.queue, rho_host)
-        self.kernel_args['rho'] = self.rho
+        self.kernel_args['rho'] = self.rho.data
 
         # Intitialize the underlying feq equilibrium field
         feq_host = np.zeros(self.get_jumper_tuple(), dtype=num_type, order='F')
         self.feq = cl.array.to_device(self.queue, feq_host)
-        self.kernel_args['feq'] = self.feq
+        self.kernel_args['feq'] = self.feq.data
 
         f_host = np.zeros(self.get_jumper_tuple(), dtype=num_type, order='F')
         self.f = cl.array.to_device(self.queue, f_host)
         self.f_streamed = self.f.copy()
 
-        self.kernel_args['f'] = self.f
-        self.kernel_args['f_streamed'] = self.f_streamed
+        self.kernel_args['f'] = self.f.data
+        self.kernel_args['f_streamed'] = self.f_streamed.data
 
         # Create list corresponding to all of the different fluids
         self.fluid_list = []
