@@ -355,9 +355,9 @@ class Autogen_Kernel(object):
 class DLA_Colony(object):
 
     def __init__(self, ctx_info=None, velocity_set=None,
-                 bc_map = None, rho=None,
-                 k_list = None, m_reproduce_list=None, D = None,
-                 context=None, use_interop=False, f_rand_amp = 1e-6):
+                 bc_map=None, rho=None, absorbed_mass=None,
+                 k_list=None, m_reproduce_list=None, D=None,
+                 context=None, use_interop=False, f_rand_amp=1e-6):
 
         self.ctx_info = ctx_info
         self.kernel_args = {}
@@ -418,6 +418,10 @@ class DLA_Colony(object):
         rho_host = np.array(rho, dtype=num_type, order='F')
         self.rho = cl.array.to_device(self.queue, rho_host)
         self.kernel_args['rho'] = self.rho.data
+
+        absorbed_mass_host = np.array(absorbed_mass, dtype=num_type, order='F')
+        self.absorbed_mass = cl.array.to_device(self.queue, rho_host)
+        self.kernel_args['absorbed_mass'] = self.absorbed_mass.data
 
         # Intitialize the underlying feq equilibrium field
         feq_host = np.zeros(self.get_jumper_tuple(), dtype=num_type, order='F')
@@ -523,7 +527,7 @@ class DLA_Colony(object):
         f_host = self.feq.get()
 
         # We now slightly perturb f.
-        perturb = 1. + amplitude * np.random.randn(f_host.shape)
+        perturb = 1. + amplitude * np.random.randn(*f_host.shape)
         f_host *= perturb
 
         # Now send f to the GPU
