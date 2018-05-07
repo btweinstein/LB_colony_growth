@@ -201,9 +201,87 @@ class Fluid(object):
             sim.cs
         ).wait()
 
+class Velocity_Set(object):
+    def __init__(self):
+        self.name = None
+
+        self.num_jumpers = None
+        self.w = None
+        self.c_vec = None
+        self.cs = None
+
+        self.reflect_index = None
+        self.slip_index = None
+
+
+class D2Q9(Velocity_Set):
+
+    def __init__(self):
+
+        super(D2Q9, self).__init__()
+
+        ##########################
+        ##### D2Q9 parameters ####
+        ##########################
+
+        w = np.array([4. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 36.,
+                      1. / 36., 1. / 36., 1. / 36.], order='F', dtype=num_type)  # weights for directions
+        cx = np.array([0, 1, 0, -1, 0, 1, -1, -1, 1], order='F', dtype=int_type)  # direction vector for the x direction
+        cy = np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=int_type)  # direction vector for the y direction
+
+        c_vec = np.array([cx, cy])
+        print c_vec.shape
+
+        self.cs = num_type(1. / np.sqrt(3))  # Speed of sound on the lattice
+
+        self.num_jumpers = int_type(9)  # Number of jumpers for the D2Q9 lattice: 9
+
+        # Create arrays for bounceback and zero-shear/symmetry conditions
+        reflect_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
+        for i in range(reflect_index.shape[0]):
+            cur_cx = cx[i]
+            cur_cy = cy[i]
+
+            reflect_cx = -cur_cx
+            reflect_cy = -cur_cy
+
+            opposite = (reflect_cx == cx) & (reflect_cy == cy)
+            reflect_index[i] = np.where(opposite)[0][0]
+
+        # When you go out of bounds in the x direction...and need to reflect back keeping y momentum
+        slip_x_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
+        for i in range(slip_x_index.shape[0]):
+            cur_cx = cx[i]
+            cur_cy = cy[i]
+
+            reflect_cx = -cur_cx
+            reflect_cy = cur_cy
+
+            opposite = (reflect_cx == cx) & (reflect_cy == cy)
+            slip_x_index[i] = np.where(opposite)[0][0]
+
+        # When you go out of bounds in the y direction...and need to reflect back keeping x momentum
+        slip_y_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
+        for i in range(slip_y_index.shape[0]):
+            cur_cx = cx[i]
+            cur_cy = cy[i]
+
+            reflect_cx = cur_cx
+            reflect_cy = -cur_cy
+
+            opposite = (reflect_cx == cx) & (reflect_cy == cy)
+            slip_y_index[i] = np.where(opposite)[0][0]
+
+        self.w = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=w)
+        self.cx = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cx)
+        self.cy = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=cy)
+        self.reflect_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=reflect_index)
+        self.slip_x_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=slip_x_index)
+        self.slip_y_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=slip_y_index)
+
 class DLA_Colony(object):
 
-    def __init__(self, ctx_info, context=None, use_interop=False):
+    def __init__(self, ctx_info, model=None, context=None, use_interop=False):
 
         self.ctx_info = ctx_info
 
