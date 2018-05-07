@@ -70,46 +70,6 @@ class Fluid(object):
         assert self.omega < 2.
 
 
-    def initialize(self, rho_arr, f_amp = 0.0):
-        """
-        ASSUMES THAT THE BARYCENTRIC VELOCITY IS ALREADY SET
-        """
-
-        #### DENSITY #####
-        rho_host = self.sim.rho.get()
-
-        rho_host[:, :, self.field_index] = rho_arr
-        self.sim.rho = cl.array.to_device(self.sim.queue, rho_host)
-
-        #### UPDATE HOPPERS ####
-        self.update_feq() # Based on the hydrodynamic fields, create feq
-
-        # Now initialize the nonequilibrium f
-        self.init_pop(amplitude=f_amp) # Based on feq, create the hopping non-equilibrium fields
-
-        #### Update the component velocities & resulting forces ####
-        # self.update_hydro() # The point here is to initialize u and v, the component velocities
-        # self.update_forces() # Calculates the drag force, if necessary, based on the component velocity
-
-    def init_pop(self, amplitude=0.001):
-        """Based on feq, create the initial population of jumpers."""
-
-        nx = self.sim.nx
-        ny = self.sim.ny
-
-        # For simplicity, copy feq to the local host, where you can make a copy. There is probably a better way to do this.
-        f_host = self.sim.feq.get()
-        cur_f = f_host[:, :, self.field_index, :]
-
-        # We now slightly perturb f. This is actually dangerous, as concentration can grow exponentially fast
-        # from sall fluctuations. Sooo...be careful.
-        perturb = (1. + amplitude * np.random.randn(nx, ny, self.sim.num_jumpers))
-        cur_f *= perturb
-
-        # Now send f to the GPU
-        f_host[:, :, self.field_index, :] = cur_f
-        self.sim.f = cl.array.to_device(self.sim.queue, f_host)
-
     def update_forces(self):
         """For internal forces...none in this case."""
 
@@ -368,6 +328,15 @@ class DLA_Colony(object):
         if velocity_set == 'D2Q9':
             self.velocity_set = D2Q9(self.ctx_info, self.context, self.kernel_args)
 
+        # Determine the relxation time scale
+        self.tau = num_type(.5 + self.D / (self.velocity_set.cs ** 2))
+        print 'tau', self.tau
+        self.omega = num_type(self.tau ** -1.)  # The relaxation time of the jumpers in the simulation
+        print 'omega', self.omega
+
+        self.kernel_args['tau'] = self.tau
+        self.kernel_args['omega'] = self.omega
+
         ## Initialize the node map...user is responsible for passing this in correctly.
         bc_map = np.array(bc_map, dtype=int_type, order='F')
         self.bc_map = cl.array.to_device(self.queue, bc_map)
@@ -396,9 +365,6 @@ class DLA_Colony(object):
         self.kernel_args['f'] = self.f.data
         self.kernel_args['f_streamed'] = self.f_streamed.data
 
-        # Create list corresponding to all of the different fluids
-        self.fluid_list = []
-        self.tau_arr = []
 
     def get_dimension_tuple(self):
 
@@ -414,40 +380,6 @@ class DLA_Colony(object):
 
     def get_jumper_tuple(self):
         return self.get_dimension_tuple() + (self.velocity_set.num_jumpers)
-
-    def add_fluid(self, fluid):
-        self.fluid_list.append(fluid)
-
-    def complete_setup(self):
-        # Run once all fluids have been added...gathers necessary info about the fluids
-
-        # Generate the list of all relaxation times. Necessary to calculate
-        # u and v prime.
-        tau_host = []
-        for cur_fluid in self.fluid_list:
-            tau_host.append(cur_fluid.tau)
-        tau_host = np.array(tau_host, dtype=num_type)
-        print 'tau array:', tau_host
-        self.tau_arr = cl.Buffer(self.context, cl.mem_flags.READ_ONLY |
-        cl.mem_flags.COPY_HOST_PTR, hostbuf=tau_host)
-
-    def set_bary_velocity(self, u_bary_host, v_bary_host):
-        self.u_bary = cl.array.to_device(self.queue, u_bary_host)
-        self.v_bary = cl.array.to_device(self.queue, v_bary_host)
-
-    def update_bary_velocity(self):
-        self.kernels.update_bary_velocity(
-            self.queue, self.two_d_global_size, self.two_d_local_size,
-            self.u_bary.data, self.v_bary.data,
-            self.rho.data,
-            self.f.data,
-            self.Gx.data, self.Gy.data,
-            self.tau_arr,
-            self.w, self.cx, self.cy,
-            self.nx, self.ny,
-            self.num_populations, self.num_jumpers
-        ).wait()
-
 
     def init_opencl(self):
         """
@@ -496,13 +428,44 @@ class DLA_Colony(object):
         )
         buf = sio.StringIO()
 
-        context = mrt.Context(buf, **self.ctx_info)
-        template.render_context(context)
+        mako_context = mrt.Context(buf, **self.ctx_info)
+        template.render_context(mako_context)
 
         with open('temp_kernels.cl', 'w') as fi:
             fi.write(buf.getvalue())
 
         self.kernels = cl.Program(self.context, buf.getvalue()).build(options='')
+
+    def initialize(self, rho_arr, f_amp = 0.0):
+        """
+        ASSUMES THAT THE BARYCENTRIC VELOCITY IS ALREADY SET
+        """
+
+        #### DENSITY #####
+        rho_host = self.rho.get()
+
+        rho_host[...] = rho_arr
+        self.rho = cl.array.to_device(self.queue, rho_host)
+
+        #### UPDATE HOPPERS ####
+        self.update_feq() # Based on the hydrodynamic fields, create feq
+
+        # Now initialize the nonequilibrium f
+        self.init_pop(amplitude=f_amp) # Based on feq, create the hopping non-equilibrium fields
+
+    def init_pop(self, amplitude=0.001):
+        """Based on feq, create the initial population of jumpers."""
+
+        # For simplicity, copy feq to the local host, where you can make a copy. There is probably a better way to do this.
+        f_host = self.feq.get()
+
+        # We now slightly perturb f.
+        perturb = 1. + amplitude * np.random.randn(f_host.shape)
+        f_host *= perturb
+
+        # Now send f to the GPU
+        self.f = cl.array.to_device(self.queue, f_host)
+
 
     def add_eating_rate(self, eater_index, eatee_index, rate, eater_cutoff):
         """
