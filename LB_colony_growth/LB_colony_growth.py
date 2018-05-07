@@ -337,7 +337,7 @@ class D2Q9(Velocity_Set):
 class DLA_Colony(object):
 
     def __init__(self, ctx_info=None, velocity_set=None, bc_map = None,
-                 k_list = None, D = None, m_reproduce_list=None,
+                 k_list = None, m_reproduce_list=None, D = None,
                  context=None, use_interop=False):
 
         self.ctx_info = ctx_info
@@ -363,6 +363,11 @@ class DLA_Colony(object):
 
         self.k_list = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=k_list)
         self.m_reproduce_list = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=m_reproduce_list)
+        self.D = num_type(D)
+
+        self.kernel_args['k'] = self.k_list
+        self.kernel_args['m'] = self.m_reproduce_list
+        self.kernel_args['D'] = self.D
 
         # Initialize the velocity set...and other important context-wide
         # variables.
