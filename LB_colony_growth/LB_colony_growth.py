@@ -12,6 +12,7 @@ import mako as m
 import mako.template as mte
 import mako.runtime as mrt
 import StringIO as sio
+import weakref
 
 # Required to draw obstacles
 import skimage as ski
@@ -169,6 +170,8 @@ class Velocity_Set(object):
 
         self.name = None
 
+        # Variables that will be passed to kernels...
+
         self.num_jumpers = None
         self.w = None
         self.c_vec = None
@@ -183,7 +186,8 @@ class Velocity_Set(object):
         self.nx_bc = None
         self.ny_bc = None
         self.nz_bc = None
-        self.bc_size = None
+
+        self.bc_size = None # Individual to each fluid...b/c each may have a different BC.
 
         self.buf_nx = None
         self.buf_ny = None
@@ -193,6 +197,8 @@ class Velocity_Set(object):
 
         const_flags = cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR
 
+        self.kernel_args['num_jumpers'] = self.num_jumpers
+        self.kernel_args['w'] = self.w
         self.kernel_args['c_vec'] = cl.Buffer(self.context, const_flags, hostbuf=self.c_vec)
         self.kernel_args['c_mag'] = cl.Buffer(self.context, const_flags, hostbuf=self.c_mag)
         self.kernel_args['cs'] = self.cs
@@ -306,7 +312,7 @@ class D2Q9(Velocity_Set):
         self.set_kernel_args()
 
 class Autogen_Kernel(object):
-    def __init__(self, short_name, opencl_kernel, py_kernel_args, gen_kernel_args):
+    def __init__(self, short_name, opencl_kernel, sim):
 
         print 'Connecting python to the opencl_kernel ' + short_name + '...'
 
@@ -314,21 +320,31 @@ class Autogen_Kernel(object):
 
         self.opencl_kernel = opencl_kernel # The opencl kernel that is run
 
-        self.py_kernel_args = py_kernel_args # Python variables that are passed into the kernel
-        self.gen_kernel_args = gen_kernel_args # A list of needed kernel arguments from kernel autogen (Mako)
+        self.sim = weakref.proxy(sim) # Need a weakref...kernel is a part of the simulation, and not vice versa
 
         self.arg_list = None
+
+        self.create_arg_list()
 
     def create_arg_list(self):
         """
         Determine what Python variables correspond to those required by the auto-generated (Mako-generated) kernel.
         """
 
-        list_for_kernel = self.gen_kernel_args[self.short_name]
+        sim = self.sim
+
+        py_kernel_args = sim.kernel_args # Python variables that are passed into the kernel
+        gen_kernel_args = sim.ctx_info['kernel_arguments'] # A list of needed kernel arguments from kernel autogen (Mako)
+
+        list_for_kernel = gen_kernel_args[self.short_name]
 
         python_args_needed = [z[0] for z in list_for_kernel]
 
-        self.arg_list = [self.py_kernel_args[z] for z in python_args_needed]
+        self.arg_list = [py_kernel_args[z] for z in python_args_needed]
+
+        additional_cl_args = [sim.queue, sim.global_size, sim.local_size]
+
+        self.arg_list = additional_cl_args + self.arg_list
 
     def run(self):
         """Usually attaches a .wait() on the return value."""
