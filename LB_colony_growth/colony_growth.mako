@@ -327,7 +327,7 @@ ${identifier} streamed_index_global = get_spatial_index_3(
         cur_kernel_list.append(['buf_nz', 'const int buf_nz'])
 
     # Specific parameter choices
-    cur_kernel_list.append(['k_list', 'const '+num_type+' *k'])
+    cur_kernel_list.append(['k_list', '__constant '+num_type+' *k'])
     cur_kernel_list.append(['D', 'const '+num_type+' D'])
 
     # Lattice velocity choices
@@ -407,7 +407,7 @@ for(int i=0; i < NUM_NEAREST_NEIGHBORS; i++){
 
         //Update the mass at the site accordingly
         // Flux in is k*rho_wall...and in lattice units, all additional factors are one.
-        mass_to_add += k*rho_wall;
+        mass_to_add += cur_k*rho_wall;
     }
 }
 absorbed_mass_global[spatial_index] += mass_to_add;
@@ -572,7 +572,7 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
     cur_kernel_list.append(['can_reproduce_pointer', '__global int *can_reproduce_global'])
 
     # Input parameters
-    cur_kernel_list.append(['m_reproduce_list', 'const '+num_type+' *m_reproduce'])
+    cur_kernel_list.append(['m_reproduce_list', '__constant '+num_type+' *m_reproduce'])
 
     # Velocity set info
     cur_kernel_list.append(['w', '__constant '+num_type+' *w'])

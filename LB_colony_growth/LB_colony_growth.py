@@ -268,14 +268,14 @@ class D2Q9(Velocity_Set):
         self.cy = np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=int_type)  # direction vector for the y direction
 
         self.c_vec = np.array([self.cx, self.cy])
-        c_mag = np.sqrt(np.sum(self.c_vec**2, axis=0))
+        self.c_mag = np.sqrt(np.sum(self.c_vec**2, axis=0))
 
         self.cs = num_type(1. / np.sqrt(3))  # Speed of sound on the lattice
         self.num_jumpers = int_type(9)  # Number of jumpers for the D2Q9 lattice: 9
 
         # Create arrays for bounceback and zero-shear/symmetry conditions
-        reflect_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
-        for i in range(reflect_index.shape[0]):
+        self.reflect_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
+        for i in range(self.reflect_index.shape[0]):
             cur_cx = self.cx[i]
             cur_cy = self.cy[i]
 
@@ -283,7 +283,7 @@ class D2Q9(Velocity_Set):
             reflect_cy = -cur_cy
 
             opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
-            reflect_index[i] = np.where(opposite)[0][0]
+            self.reflect_index[i] = np.where(opposite)[0][0]
 
         # When you go out of bounds in the x direction...and need to reflect back keeping y momentum
         slip_x_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
@@ -309,7 +309,7 @@ class D2Q9(Velocity_Set):
             opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
             slip_y_index[i] = np.where(opposite)[0][0]
 
-        slip_index = np.array([slip_x_index, slip_y_index])
+        self.slip_index = np.array([slip_x_index, slip_y_index])
 
 
         # Define other important info
@@ -357,7 +357,7 @@ class DLA_Colony(object):
         const_flags = cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR
 
         self.kernel_args['k_list'] = cl.Buffer(self.context, const_flags, hostbuf=self.k_list)
-        self.kernel_args['m_reproduce_list'] = cl.Buffer(self.context, const_flags, hostbuf=m_reproduce_list)
+        self.kernel_args['m_reproduce_list'] = cl.Buffer(self.context, const_flags, hostbuf=self.m_reproduce_list)
 
         self.D = num_type(D)
         self.kernel_args['D'] = self.D
