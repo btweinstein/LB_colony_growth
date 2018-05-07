@@ -305,6 +305,35 @@ class D2Q9(Velocity_Set):
         # Now that everything is defined...set the corresponding kernel definitions
         self.set_kernel_args()
 
+class Autogen_Kernel(object):
+    def __init__(self, short_name, opencl_kernel, py_kernel_args, gen_kernel_args):
+
+        print 'Connecting python to the opencl_kernel ' + short_name + '...'
+
+        self.short_name = short_name # The name of the kernel in the kernel_arg dict
+
+        self.opencl_kernel = opencl_kernel # The opencl kernel that is run
+
+        self.py_kernel_args = py_kernel_args # Python variables that are passed into the kernel
+        self.gen_kernel_args = gen_kernel_args # A list of needed kernel arguments from kernel autogen (Mako)
+
+        self.arg_list = None
+
+    def create_arg_list(self):
+        """
+        Determine what Python variables correspond to those required by the auto-generated (Mako-generated) kernel.
+        """
+
+        list_for_kernel = self.gen_kernel_args[self.short_name]
+
+        python_args_needed = [z[0] for z in list_for_kernel]
+
+        self.arg_list = [self.py_kernel_args[z] for z in python_args_needed]
+
+    def run(self):
+        """Usually attaches a .wait() on the return value."""
+        return self.opencl_kernel(*self.arg_list)
+
 class DLA_Colony(object):
 
     def __init__(self, ctx_info=None, velocity_set=None,
@@ -377,7 +406,9 @@ class DLA_Colony(object):
         self.feq = cl.array.to_device(self.queue, feq_host)
         self.kernel_args['feq'] = self.feq.data
 
-        self.init_feq() # Based on the input hydrodynamic fields, create feq
+        self.init_feq = Autogen_Kernel('init_feq', self.kernels.init_feq, self.kernel_args, self.ctx_info['kernel_arguments'])
+
+        self.init_feq.run().wait() # Based on the input hydrodynamic fields, create feq
 
 
         f_host = np.zeros(self.get_jumper_tuple(), dtype=num_type, order='F')
@@ -389,6 +420,15 @@ class DLA_Colony(object):
 
         # Now initialize the nonequilibrium f
         self.init_pop(amplitude=f_rand_amp) # Based on feq, create the hopping non-equilibrium fields
+
+        # Generate the rest of the needed kernels
+        ctx_kernel_args = self.ctx_info['kernel_arguments']
+        self.collide_and_propagate = Autogen_Kernel('collide_and_propagate', self.kernels.collide_and_propagate,
+                                                    self.kernel_args, ctx_kernel_args)
+        self.update_after_streaming = Autogen_Kernel('update_after_streaming', self.kernels.update_after_streaming,
+                                                    self.kernel_args, ctx_kernel_args)
+        self.reproduce = Autogen_Kernel('reproduce', self.kernels.reproduce,
+                                                     self.kernel_args, ctx_kernel_args)
 
 
     def get_dimension_tuple(self):
