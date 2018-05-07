@@ -317,8 +317,8 @@ ${identifier} streamed_index_global = get_spatial_index_3(
     cur_kernel_list.append(['absorbed_mass', '__global '+num_type+' *absorbed_mass_global'])
 
     # Variables that are read into local memory
-    cur_kernel_list.append(['local_mem', '__local '+num_type+' *rho_local'])
-    cur_kernel_list.append(['local_mem', '__local '+num_type+' *bc_map_local'])
+    cur_kernel_list.append(['local_mem_num', '__local '+num_type+' *rho_local'])
+    cur_kernel_list.append(['local_mem_int', '__local '+num_type+' *bc_map_local'])
 
     # Local memory info
     cur_kernel_list.append(['buf_nx', 'const int buf_nx'])
@@ -616,7 +616,7 @@ init_feq(
     cur_kernel_list.append(['c_vec', '__constant int *c_vec'])
 
     # Local memory info
-    cur_kernel_list.append(['local_mem', '__local '+num_type+' *bc_map_local'])
+    cur_kernel_list.append(['local_mem_int', '__local '+num_type+' *bc_map_local'])
 
     cur_kernel_list.append(['buf_nx', 'const int buf_nx'])
     cur_kernel_list.append(['buf_ny', 'const int buf_ny'])
