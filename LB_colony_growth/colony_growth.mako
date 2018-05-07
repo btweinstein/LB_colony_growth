@@ -516,8 +516,8 @@ update_after_streaming(
         // Figure out what type of node is present
         ${read_node_type_from_global() | wrap2}
 
-        ${update_hydro() | wrap3}
-        ${update_feq() | wrap3}
+        ${update_hydro() | wrap2}
+        ${update_feq() | wrap2}
     }
 }
 
@@ -551,6 +551,42 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
 }
 
 </%def>
+
+######### Update feq for initialization #####
+
+<%
+    cur_kernel = 'init_feq'
+    kernel_arguments[cur_kernel] = []
+    cur_kernel_list = kernel_arguments[cur_kernel]
+
+    cur_kernel_list.append(['feq', '__global __read_only '+num_type+' *feq_global'])
+    cur_kernel_list.append(['rho', '__global '+num_type+' *rho_global'])
+
+    # Velocity set info
+    cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
+    cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
+%>
+
+__kernel void
+init_feq(
+<%
+    print_kernel_args(cur_kernel_list)
+%>
+)
+{
+    // Get info about where thread is located in global memory
+    ${define_thread_location() | wrap1}
+
+    // Main loop...
+    ${if_thread_in_domain() | wrap1}{
+        // Figure out what type of node is present
+
+        ${num_type} new_rho = rho_global[spatial_index];
+
+        ${update_feq() | wrap2}
+    }
+}
+
 
 ######### Reproduce cells kernel #########
 <%
@@ -677,7 +713,7 @@ if (can_reproduce){
                 if (prev_type == FLUID_NODE){
                     absorbed_mass_global[spatial_index] -= cur_m_reproduce;
                 } // Otherwise, someone reproduced and blocked you! Try again next iteration...
-            }
+            }//TODO: NEED A BREAK HERE
         }
     }
 }
