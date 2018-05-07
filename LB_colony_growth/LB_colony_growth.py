@@ -337,6 +337,7 @@ class D2Q9(Velocity_Set):
 class DLA_Colony(object):
 
     def __init__(self, ctx_info=None, velocity_set=None, bc_map = None,
+                 k_list = None, D_list = None,
                  context=None, use_interop=False):
 
         self.ctx_info = ctx_info
@@ -355,6 +356,9 @@ class DLA_Colony(object):
         self.kernels = None     # Compiled OpenCL kernels
         self.use_interop = use_interop
         self.init_opencl()      # Initializes all items required to run OpenCL code
+
+        # Convert the list of k's, d's, and m_reproduce to buffer
+
 
         # Initialize the velocity set...and other important context-wide
         # variables.
