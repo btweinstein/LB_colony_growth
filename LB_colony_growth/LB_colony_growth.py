@@ -231,14 +231,14 @@ class Velocity_Set(object):
 
     def set_kernel_args(self):
 
-        self.kernel_args['num_jumpers'] = self.num_jumpers
-        self.kernel_args['w'] = self.w
-        self.kernel_args['c_vec'] = self.c_vec
-        self.kernel_args['c_mag'] = self.c_mag
+        const_flags = cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR
+
+        self.kernel_args['c_vec'] = cl.Buffer(self.context, const_flags, hostbuf=self.c_vec)
+        self.kernel_args['c_mag'] = cl.Buffer(self.context, const_flags, hostbuf=self.c_mag)
         self.kernel_args['cs'] = self.cs
 
-        self.kernel_args['reflect_index'] = self.reflect_index
-        self.kernel_args['slip_index'] = self.slip_index
+        self.kernel_args['reflect_index'] = cl.Buffer(self.context, const_flags, hostbuf=self.reflect_index)
+        self.kernel_args['slip_index'] = cl.Buffer(self.context, const_flags, hostbuf=self.slip_index)
 
         self.kernel_args['halo'] = self.halo
 
@@ -262,13 +262,13 @@ class D2Q9(Velocity_Set):
         ##### D2Q9 parameters ####
         ##########################
 
-        w = np.array([4. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 36.,
+        self.w = np.array([4. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 36.,
                       1. / 36., 1. / 36., 1. / 36.], order='F', dtype=num_type)  # weights for directions
-        cx = np.array([0, 1, 0, -1, 0, 1, -1, -1, 1], order='F', dtype=int_type)  # direction vector for the x direction
-        cy = np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=int_type)  # direction vector for the y direction
+        self.cx = np.array([0, 1, 0, -1, 0, 1, -1, -1, 1], order='F', dtype=int_type)  # direction vector for the x direction
+        self.cy = np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=int_type)  # direction vector for the y direction
 
-        c_vec = np.array([cx, cy])
-        c_mag = np.sqrt(np.sum(c_vec**2, axis=0))
+        self.c_vec = np.array([self.cx, self.cy])
+        c_mag = np.sqrt(np.sum(self.c_vec**2, axis=0))
 
         self.cs = num_type(1. / np.sqrt(3))  # Speed of sound on the lattice
         self.num_jumpers = int_type(9)  # Number of jumpers for the D2Q9 lattice: 9
@@ -276,48 +276,41 @@ class D2Q9(Velocity_Set):
         # Create arrays for bounceback and zero-shear/symmetry conditions
         reflect_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
         for i in range(reflect_index.shape[0]):
-            cur_cx = cx[i]
-            cur_cy = cy[i]
+            cur_cx = self.cx[i]
+            cur_cy = self.cy[i]
 
             reflect_cx = -cur_cx
             reflect_cy = -cur_cy
 
-            opposite = (reflect_cx == cx) & (reflect_cy == cy)
+            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
             reflect_index[i] = np.where(opposite)[0][0]
 
         # When you go out of bounds in the x direction...and need to reflect back keeping y momentum
         slip_x_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
         for i in range(slip_x_index.shape[0]):
-            cur_cx = cx[i]
-            cur_cy = cy[i]
+            cur_cx = self.cx[i]
+            cur_cy = self.cy[i]
 
             reflect_cx = -cur_cx
             reflect_cy = cur_cy
 
-            opposite = (reflect_cx == cx) & (reflect_cy == cy)
+            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
             slip_x_index[i] = np.where(opposite)[0][0]
 
         # When you go out of bounds in the y direction...and need to reflect back keeping x momentum
         slip_y_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
         for i in range(slip_y_index.shape[0]):
-            cur_cx = cx[i]
-            cur_cy = cy[i]
+            cur_cx = self.cx[i]
+            cur_cy = self.cy[i]
 
             reflect_cx = cur_cx
             reflect_cy = -cur_cy
 
-            opposite = (reflect_cx == cx) & (reflect_cy == cy)
+            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
             slip_y_index[i] = np.where(opposite)[0][0]
 
         slip_index = np.array([slip_x_index, slip_y_index])
 
-        # Define all necessary constant buffers
-
-        self.w = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=w)
-        self.c_vec = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=c_vec)
-        self.c_mag = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=c_mag)
-        self.reflect_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=reflect_index)
-        self.slip_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=slip_index)
 
         # Define other important info
         self.halo = int_type(1)
@@ -358,15 +351,15 @@ class DLA_Colony(object):
         self.init_opencl()      # Initializes all items required to run OpenCL code
 
         # Convert the list of k's and m_reproduce to buffer
-        k_list = np.array(k_list, dtype=num_type, order='F')
-        m_reproduce_list = np.array(m_reproduce_list, dtype=num_type, order='F')
+        self.k_list = np.array(k_list, dtype=num_type, order='F')
+        self.m_reproduce_list = np.array(m_reproduce_list, dtype=num_type, order='F')
 
-        self.k_list = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=k_list)
-        self.m_reproduce_list = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=m_reproduce_list)
+        const_flags = cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR
+
+        self.kernel_args['k_list'] = cl.Buffer(self.context, const_flags, hostbuf=self.k_list)
+        self.kernel_args['m_reproduce_list'] = cl.Buffer(self.context, const_flags, hostbuf=m_reproduce_list)
+
         self.D = num_type(D)
-
-        self.kernel_args['k'] = self.k_list
-        self.kernel_args['m'] = self.m_reproduce_list
         self.kernel_args['D'] = self.D
 
         # Initialize the velocity set...and other important context-wide
