@@ -14,12 +14,6 @@
 % if dimension == 3:
 #define nz ${nz}
 % endif
-// Define boundary map domain size
-#define nx_bc ${nx_bc}
-#define ny_bc ${ny_bc}
-% if dimension == 3:
-#define nz_bc ${nz_bc}
-% endif
 
 #define SMALL 1e-6
 
@@ -311,6 +305,11 @@ ${identifier} streamed_index_global = get_spatial_index_3(
 
     # Global variables
     cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map_global'])
+    cur_kernel_list.append(['nx_bc', 'const int nx_bc'])
+    cur_kernel_list.append(['ny_bc', 'const int ny_bc'])
+    if dimension == 3:
+        cur_kernel_list.append(['nz_bc', 'const int nz_bc'])
+
     cur_kernel_list.append(['f', '__global '+num_type+' *f_global'])
     cur_kernel_list.append(['f_streamed', '__global '+num_type+' *f_streamed_global'])
     cur_kernel_list.append(['feq', '__global __read_only '+num_type+' *feq_global'])
@@ -478,6 +477,11 @@ f_streamed_global[streamed_index_global] = f_after_collision;
     cur_kernel_list = kernel_arguments[cur_kernel]
 
     cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map_global'])
+    cur_kernel_list.append(['nx_bc', 'const int nx_bc'])
+    cur_kernel_list.append(['ny_bc', 'const int ny_bc'])
+    if dimension == 3:
+        cur_kernel_list.append(['nz_bc', 'const int nz_bc'])
+
     cur_kernel_list.append(['f', '__global '+num_type+' *f_global'])
     cur_kernel_list.append(['feq', '__global __read_only '+num_type+' *feq_global'])
     cur_kernel_list.append(['rho', '__global '+num_type+' *rho_global'])
@@ -545,6 +549,11 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
     cur_kernel_list = kernel_arguments[cur_kernel]
 
     cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map_global'])
+    cur_kernel_list.append(['nx_bc', 'const int nx_bc'])
+    cur_kernel_list.append(['ny_bc', 'const int ny_bc'])
+    if dimension == 3:
+        cur_kernel_list.append(['nz_bc', 'const int nz_bc'])
+
     cur_kernel_list.append(['streamed_bc_map', '__global int *streamed_bc_map_global'])
     cur_kernel_list.append(['absorbed_mass', '__global '+num_type+' *absorbed_mass_global'])
     cur_kernel_list.append(['rand', '__global '+num_type+' *rand_global'])

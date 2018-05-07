@@ -202,7 +202,10 @@ class Fluid(object):
         ).wait()
 
 class Velocity_Set(object):
-    def __init__(self):
+    def __init__(self, ctx_info, context):
+        self.ctx_info = ctx_info
+        self.context = context
+
         self.name = None
 
         self.num_jumpers = None
@@ -213,12 +216,19 @@ class Velocity_Set(object):
         self.reflect_index = None
         self.slip_index = None
 
+        self.halo = None
+        self.buf_nx = None
+        self.buf_ny = None
+        self.buf_nz = None
+
 
 class D2Q9(Velocity_Set):
 
-    def __init__(self):
+    def __init__(self, ctx_info, context):
 
-        super(D2Q9, self).__init__()
+        super(D2Q9, self).__init__(ctx_info, context)
+
+        self.name = 'D2Q9'
 
         ##########################
         ##### D2Q9 parameters ####
@@ -279,6 +289,15 @@ class D2Q9(Velocity_Set):
         self.reflect_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=reflect_index)
         self.slip_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=slip_index)
 
+        # Define other important info
+        self.halo = 1
+        self.buf_nx = self.ctx_info['local_size'][0] + 2*self.halo
+        self.buf_ny = self.ctx_info['local_size'][1] + 2*self.halo
+
+        self.nx_bc = self.ctx_info['nx'] + 2*self.halo
+        self.ny_bc = self.ctx_info['ny'] + 2*self.halo
+        self.nz_bc = None
+
 class DLA_Colony(object):
 
     def __init__(self, ctx_info, velocity_set, context=None, use_interop=False):
@@ -292,19 +311,18 @@ class DLA_Colony(object):
         print 'global size:' , self.global_size
         print 'local size:' , self.local_size
 
-        # Initialize the velocity set...and other important context-wide
-        # variables.
-        self.velocity_set = None
-        if velocity_set == 'D2Q9':
-            self.velocity_set = D2Q9()
-
-
         # Initialize the opencl environment
         self.context = context     # The pyOpenCL context
         self.queue = None       # The queue used to issue commands to the desired device
         self.kernels = None     # Compiled OpenCL kernels
         self.use_interop = use_interop
         self.init_opencl()      # Initializes all items required to run OpenCL code
+
+        # Initialize the velocity set...and other important context-wide
+        # variables.
+        self.velocity_set = None
+        if velocity_set == 'D2Q9':
+            self.velocity_set = D2Q9(self.ctx_info, self.context)
 
         ## Initialize the node map...user is responsible for passing this in correctly.
         # The node map can have a DIFFERENT nx and ny...so we will have to translate between the two
