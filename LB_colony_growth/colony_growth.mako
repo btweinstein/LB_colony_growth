@@ -327,7 +327,7 @@ ${identifier} streamed_index_global = get_spatial_index_3(
         cur_kernel_list.append(['buf_nz', 'const int buf_nz'])
 
     # Specific parameter choices
-    cur_kernel_list.append(['k', 'const '+num_type+' k'])
+    cur_kernel_list.append(['k_list', 'const '+num_type+' *k'])
     cur_kernel_list.append(['D', 'const '+num_type+' D'])
 
     # Lattice velocity choices
@@ -394,11 +394,16 @@ for(int i=0; i < NUM_NEAREST_NEIGHBORS; i++){
     const int streamed_bc = bc_map_local[streamed_index_local];
 
     if (streamed_bc == FLUID_NODE){ // Scalar can diffuse in
+        // Alleles are negative...need to convert to an index
+        const int allele_index = -1*node_type - 1;
+
+        const ${num_type} cur_k = k[allele_index];
+
         // Determine Cwall via finite difference
         const ${num_type} cur_rho = rho_local[local_index];
 
         const ${num_type} cur_c_mag = 1.0; // Magnitude to nearest neighbors is always one
-        const ${num_type} rho_wall = cur_rho/(1 + (k*cur_c_mag)/(2*D));
+        const ${num_type} rho_wall = cur_rho/(1 + (cur_k*cur_c_mag)/(2*D));
 
         //Update the mass at the site accordingly
         // Flux in is k*rho_wall...and in lattice units, all additional factors are one.
@@ -447,9 +452,14 @@ else if (streamed_bc == WALL_NODE){ // Bounceback; impenetrable boundary
 else if (streamed_bc < 0){ // You are at a population node
     // Determine Cwall via finite difference
 
+    // Alleles are negative...need to convert to an index
+    const int allele_index = -1*node_type - 1;
+
+    const ${num_type} cur_k = k[allele_index];
+
     ${num_type} cur_rho = rho_local[local_index];
     ${num_type} cur_c_mag = c_mag[jump_id];
-    ${num_type} rho_wall = cur_rho/(1 + (k*cur_c_mag)/(2*D));
+    ${num_type} rho_wall = cur_rho/(1 + (cur_k*cur_c_mag)/(2*D));
 
     // Based on rho_wall, do the bounceback
     ${num_type} cur_w = w[jump_id];
@@ -562,7 +572,7 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
     cur_kernel_list.append(['can_reproduce_pointer', '__global int *can_reproduce_global'])
 
     # Input parameters
-    cur_kernel_list.append(['m_reproduce', 'const '+num_type+' m_reproduce'])
+    cur_kernel_list.append(['m_reproduce_list', 'const '+num_type+' *m_reproduce'])
 
     # Velocity set info
     cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
@@ -603,8 +613,14 @@ reproduce(
 
         if (node_type < 0){ // Population node!
             //Check if you have accumulated enough mass
+
+            // Alleles are negative...need to convert to an index
+            const int allele_index = -1*node_type - 1;
+
+            const ${num_type} cur_m_reproduce = m_reproduce[allele_index];
+
             ${num_type} current_mass = absorbed_mass_global[spatial_index];
-            if (current_mass > m_reproduce){
+            if (current_mass > cur_m_reproduce){
                 ${reproduce() | wrap4}
             }
         }
@@ -659,7 +675,7 @@ if (can_reproduce){
 
                 // If successful, subtract mass, because you reproduced!
                 if (prev_type == FLUID_NODE){
-                    absorbed_mass_global[spatial_index] -= m_reproduce;
+                    absorbed_mass_global[spatial_index] -= cur_m_reproduce;
                 } // Otherwise, someone reproduced and blocked you! Try again next iteration...
             }
         }
