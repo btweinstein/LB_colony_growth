@@ -337,7 +337,7 @@ class D2Q9(Velocity_Set):
 class DLA_Colony(object):
 
     def __init__(self, ctx_info=None, velocity_set=None, bc_map = None,
-                 k_list = None, D_list = None,
+                 k_list = None, D = None, m_reproduce_list=None,
                  context=None, use_interop=False):
 
         self.ctx_info = ctx_info
@@ -357,8 +357,12 @@ class DLA_Colony(object):
         self.use_interop = use_interop
         self.init_opencl()      # Initializes all items required to run OpenCL code
 
-        # Convert the list of k's, d's, and m_reproduce to buffer
-        self.k_list = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.lb_G)
+        # Convert the list of k's and m_reproduce to buffer
+        k_list = np.array(k_list, dtype=num_type, order='F')
+        m_reproduce_list = np.array(m_reproduce_list, dtype=num_type, order='F')
+
+        self.k_list = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=k_list)
+        self.m_reproduce_list = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=m_reproduce_list)
 
         # Initialize the velocity set...and other important context-wide
         # variables.
