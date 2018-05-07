@@ -202,9 +202,10 @@ class Fluid(object):
         ).wait()
 
 class Velocity_Set(object):
-    def __init__(self, ctx_info, context):
+    def __init__(self, ctx_info, context, kernel_args):
         self.ctx_info = ctx_info
         self.context = context
+        self.kernel_args = kernel_args
 
         self.name = None
 
@@ -226,12 +227,31 @@ class Velocity_Set(object):
         self.buf_ny = None
         self.buf_nz = None
 
+    def set_kernel_args(self):
+
+        self.kernel_args['num_jumpers'] = self.num_jumpers
+        self.kernel_args['w'] = self.w
+        self.kernel_args['c_vec'] = self.c_vec
+        self.kernel_args['cs'] = self.cs
+
+        self.kernel_args['reflect_index'] = self.reflect_index
+        self.kernel_args['slip_index'] = self.slip_index
+
+        self.kernel_args['halo'] = self.halo
+
+        self.kernel_args['nx_bc'] = self.nx_bc
+        self.kernel_args['ny_bc'] = self.ny_bc
+        self.kernel_args['nz_bc'] = self.nz_bc
+
+        self.kernel_args['buf_nx'] = self.buf_nx
+        self.kernel_args['buf_ny'] = self.buf_ny
+        self.kernel_args['buf_nz'] = self.buf_nz
 
 class D2Q9(Velocity_Set):
 
-    def __init__(self, ctx_info, context):
+    def __init__(self, ctx_info, context, kernel_args):
 
-        super(D2Q9, self).__init__(ctx_info, context)
+        super(D2Q9, self).__init__(ctx_info, context, kernel_args)
 
         self.name = 'D2Q9'
 
@@ -295,14 +315,17 @@ class D2Q9(Velocity_Set):
         self.slip_index = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=slip_index)
 
         # Define other important info
-        self.halo = 1
-        self.buf_nx = self.ctx_info['local_size'][0] + 2*self.halo
-        self.buf_ny = self.ctx_info['local_size'][1] + 2*self.halo
+        self.halo = int_type(1)
+        self.buf_nx = int_type(self.ctx_info['local_size'][0] + 2*self.halo)
+        self.buf_ny = int_type(self.ctx_info['local_size'][1] + 2*self.halo)
         self.buf_nz = None
 
-        self.nx_bc = self.ctx_info['nx'] + 2*self.halo
-        self.ny_bc = self.ctx_info['ny'] + 2*self.halo
+        self.nx_bc = int_type(self.ctx_info['nx'] + 2*self.halo)
+        self.ny_bc = int_type(self.ctx_info['ny'] + 2*self.halo)
         self.nz_bc = None
+
+        # Now that everything is defined...set the corresponding kernel definitions
+        self.set_kernel_args()
 
 class DLA_Colony(object):
 
@@ -310,6 +333,7 @@ class DLA_Colony(object):
                  context=None, use_interop=False):
 
         self.ctx_info = ctx_info
+        self.kernel_args = {}
 
         # Create global & local sizes appropriately
         self.local_size = self.ctx_info['local_size']
@@ -329,7 +353,7 @@ class DLA_Colony(object):
         # variables.
         self.velocity_set = None
         if velocity_set == 'D2Q9':
-            self.velocity_set = D2Q9(self.ctx_info, self.context)
+            self.velocity_set = D2Q9(self.ctx_info, self.context, self.kernel_args)
 
         ## Initialize the node map...user is responsible for passing this in correctly.
         bc_map = np.array(bc_map, dtype=int_type, order='F')
