@@ -335,21 +335,15 @@ class DLA_Colony(object):
         bc_map = np.array(bc_map, dtype=int_type, order='F')
         self.bc_map = cl.array.to_device(self.queue, bc_map)
 
+        ## Initialize hydrodynamic variables
+        nx = self.ctx_info['nx']
+        ny = self.ctx_info['nz']
+        nz = None
+        if self.ctx_info['dimension'] == 3:
+            nz = self.ctx_info['nz']
 
-        ## Initialize hydrodynamic variables & Shan-chen variables
-
-        rho_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=num_type, order='F')
+        rho_host = np.zeros(self.get_dimension_tuple(), dtype=num_type, order='F')
         self.rho = cl.array.to_device(self.queue, rho_host)
-
-        u_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=num_type, order='F')
-        v_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=num_type, order='F')
-        self.u = cl.array.to_device(self.queue, u_host) # Velocity in the x direction; one per fluid!
-        self.v = cl.array.to_device(self.queue, v_host) # Velocity in the y direction; one per fluid.
-
-        u_bary_host = np.zeros((self.nx, self.ny), dtype=num_type, order='F')
-        v_bary_host = np.zeros((self.nx, self.ny), dtype=num_type, order='F')
-        self.u_bary = cl.array.to_device(self.queue, u_bary_host)  # Velocity in the x direction; one per sim!
-        self.v_bary = cl.array.to_device(self.queue, v_bary_host)  # Velocity in the y direction; one per sim.
 
         # Intitialize the underlying feq equilibrium field
         feq_host = np.zeros((self.nx, self.ny, self.num_populations, self.num_jumpers), dtype=num_type, order='F')
@@ -379,6 +373,18 @@ class DLA_Colony(object):
         self.poisson_amp = None
         self.poisson_xgrad = None
         self.poisson_ygrad = None
+
+    def get_dimension_tuple(self):
+
+        dimension = self.ctx_info['dimension']
+        nx = self.ctx_info['nx']
+        ny = self.ctx_info['ny']
+        nz = self.ctx_info['nz']
+
+        if dimension == 2:
+            return (nx, ny)
+        elif dimension == 3:
+            return (nx, ny, nz)
 
     def add_fluid(self, fluid):
         self.fluid_list.append(fluid)
