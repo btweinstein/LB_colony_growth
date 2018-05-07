@@ -346,8 +346,6 @@ class Autogen_Kernel(object):
 
         self.arg_list = additional_cl_args + self.arg_list
 
-        print self.arg_list
-
     def run(self):
         """Usually attaches a .wait() on the return value."""
         return self.opencl_kernel(*self.arg_list)
