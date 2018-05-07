@@ -259,14 +259,14 @@ const int jump_index = get_spatial_index_4(x, y, z, ${jump_id}, nx, ny, nz, num_
 </%def>
 
 
-<%def name='define_all_c(jump_id="jump_id")' buffered='True' filter='trim'>
+<%def name='define_all_c(jump_id="jump_id", identifier="const int")' buffered='True' filter='trim'>
 
-const int cur_cx = c_vec[get_spatial_index_2(0, ${jump_id}, ${dimension}, num_jumpers)];
-const int cur_cy = c_vec[get_spatial_index_2(1, ${jump_id}, ${dimension}, num_jumpers)];
+${identifier} cur_cx = c_vec[get_spatial_index_2(0, ${jump_id}, ${dimension}, num_jumpers)];
+${identifier} cur_cy = c_vec[get_spatial_index_2(1, ${jump_id}, ${dimension}, num_jumpers)];
 %if dimension == 3:
-const int cur_cz = c_vec[get_spatial_index_2(2, jump_id, ${dimension}, num_jumpers)];
-
+${identifier} cur_cz = c_vec[get_spatial_index_2(2, jump_id, ${dimension}, num_jumpers)];
 %endif
+
 </%def>
 
 
@@ -685,19 +685,25 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
     }
 }
 
-
 if (space_to_reproduce){
     const ${num_type} rand_num = rand_global[spatial_index];
 
     bool has_chosen_direction = false;
 
-    ${num_type} prob_total = 0;
+    int cur_cx = 0;
+    int cur_cy = 0;
+    %if dimension == 3:
+    int cur_cz = 0;
+    %endif
+
     int jump_id = -1;
 
+    ${num_type} prob_total = 0;
     while((jump_id < num_jumpers) && (!has_chosen_direction)){
         jump_id += 1;
 
-        ${define_all_c() | wrap2}
+        ## Use the c's defined outside the loop
+        ${define_all_c(identifier='') | wrap2}
         ${define_streamed_index_local() | wrap2}
 
         const int streamed_node_type = bc_map_local[streamed_index_local];
@@ -709,8 +715,9 @@ if (space_to_reproduce){
         }
     }
     // The final jump_id corresponds to the direction to jump!
+    // Same with the current jump directions
 
-    ${define_streamed_index_global() | wrap4}
+    ${define_streamed_index_global() | wrap1}
 
     //TODO: This can probably be sped up by doing comparisons with local, *then* going to global...
     // Copy your node type into the new node atomically IF the fluid node is still there...
@@ -720,13 +727,10 @@ if (space_to_reproduce){
         node_type
     );
 
-                // If successful, subtract mass, because you reproduced!
-                if (prev_type == FLUID_NODE){
-                    absorbed_mass_global[spatial_index] -= cur_m_reproduce;
-                } // Otherwise, someone reproduced and blocked you! Try again next iteration...
-            }//TODO: NEED A BREAK HERE
-        }
-    }
+    // If successful, subtract mass, because you reproduced!
+    if (prev_type == FLUID_NODE){
+        absorbed_mass_global[spatial_index] -= cur_m_reproduce;
+    } // Otherwise, someone reproduced and blocked you! Try again next iteration...
 }
 
 </%def>
