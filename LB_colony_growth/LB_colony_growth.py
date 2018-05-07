@@ -358,18 +358,27 @@ class DLA_Colony(object):
         ## Initialize the node map...user is responsible for passing this in correctly.
         bc_map = np.array(bc_map, dtype=int_type, order='F')
         self.bc_map = cl.array.to_device(self.queue, bc_map)
+        self.bc_map_streamed = self.bc_map.copy()
+
+        self.kernel_args['bc_map'] = self.bc_map
+        self.kernel_args['bc_map_streamed'] = self.bc_map_streamed
 
         ## Initialize hydrodynamic variables
         rho_host = np.zeros(self.get_dimension_tuple(), dtype=num_type, order='F')
         self.rho = cl.array.to_device(self.queue, rho_host)
+        self.kernel_args['rho'] = self.rho
 
         # Intitialize the underlying feq equilibrium field
         feq_host = np.zeros(self.get_jumper_tuple(), dtype=num_type, order='F')
         self.feq = cl.array.to_device(self.queue, feq_host)
+        self.kernel_args['feq'] = self.feq
 
         f_host = np.zeros(self.get_jumper_tuple(), dtype=num_type, order='F')
         self.f = cl.array.to_device(self.queue, f_host)
         self.f_streamed = self.f.copy()
+
+        self.kernel_args['f'] = self.f
+        self.kernel_args['f_streamed'] = self.f_streamed
 
         # Create list corresponding to all of the different fluids
         self.fluid_list = []
