@@ -668,8 +668,9 @@ reproduce(
 // Calculate the normalization constant
 ${num_type} norm_constant = 0;
 
-bool can_reproduce = false;
+bool space_to_reproduce = false;
 
+//Determine if you can reproduce...need enough space, mass is already checked.
 for(int jump_id=0; jump_id < num_jumpers; jump_id++){
     ${define_all_c() | wrap1}
 
@@ -679,35 +680,45 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
 
     if (streamed_node_type == FLUID_NODE){ // Population can expand into this!
         norm_constant += w[jump_id];
-        can_reproduce = true;
+        space_to_reproduce = true;
         can_reproduce_global[0] = 1; // Flag that indicates if someone, somewhere *can* reproduce
     }
 }
 
-if (can_reproduce){
+
+if (space_to_reproduce){
     const ${num_type} rand_num = rand_global[spatial_index];
 
-    ${num_type} prob_total = 0;
+    bool has_chosen_direction = false;
 
-    for(int jump_id=0; jump_id < num_jumpers; jump_id++){
+    ${num_type} prob_total = 0;
+    int jump_id = -1;
+
+    while((jump_id < num_jumpers) && (!has_chosen_direction)){
+        jump_id += 1;
+
         ${define_all_c() | wrap2}
         ${define_streamed_index_local() | wrap2}
 
         const int streamed_node_type = bc_map_local[streamed_index_local];
-
         if (streamed_node_type == FLUID_NODE){ // Population can expand into this!
             prob_total += w[jump_id]/norm_constant;
             if (prob_total > rand_num){
-                // Propagate to that spot, atomically!
-                ${define_streamed_index_global() | wrap4}
+                has_chosen_direction = true;
+            }
+        }
+    }
+    // The final jump_id corresponds to the direction to jump!
 
-                //TODO: This can probably be sped up by doing comparisons with local, *then* going to global...
-                // Copy your node type into the new node atomically IF the fluid node is still there...
-                const int prev_type = atomic_cmpxchg(
-                    &streamed_bc_map_global[streamed_index_global],
-                    FLUID_NODE,
-                    node_type
-                );
+    ${define_streamed_index_global() | wrap4}
+
+    //TODO: This can probably be sped up by doing comparisons with local, *then* going to global...
+    // Copy your node type into the new node atomically IF the fluid node is still there...
+    const int prev_type = atomic_cmpxchg(
+        &streamed_bc_map_global[streamed_index_global],
+        FLUID_NODE,
+        node_type
+    );
 
                 // If successful, subtract mass, because you reproduced!
                 if (prev_type == FLUID_NODE){
