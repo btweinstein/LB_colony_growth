@@ -217,6 +217,11 @@ class Velocity_Set(object):
         self.slip_index = None
 
         self.halo = None
+
+        self.nx_bc = None
+        self.ny_bc = None
+        self.nz_bc = None
+
         self.buf_nx = None
         self.buf_ny = None
         self.buf_nz = None
@@ -293,6 +298,7 @@ class D2Q9(Velocity_Set):
         self.halo = 1
         self.buf_nx = self.ctx_info['local_size'][0] + 2*self.halo
         self.buf_ny = self.ctx_info['local_size'][1] + 2*self.halo
+        self.buf_nz = None
 
         self.nx_bc = self.ctx_info['nx'] + 2*self.halo
         self.ny_bc = self.ctx_info['ny'] + 2*self.halo
@@ -300,7 +306,8 @@ class D2Q9(Velocity_Set):
 
 class DLA_Colony(object):
 
-    def __init__(self, ctx_info, velocity_set, context=None, use_interop=False):
+    def __init__(self, ctx_info=None, velocity_set=None, bc_map = None,
+                 context=None, use_interop=False):
 
         self.ctx_info = ctx_info
 
@@ -325,10 +332,6 @@ class DLA_Colony(object):
             self.velocity_set = D2Q9(self.ctx_info, self.context)
 
         ## Initialize the node map...user is responsible for passing this in correctly.
-        # The node map can have a DIFFERENT nx and ny...so we will have to translate between the two
-        self.nx_bc = int_type(bc_map.shape[0])
-        self.ny_bc = int_type(bc_map.shape[1])
-        self.halo_bc = int_type((self.nx_bc - nx)/2)
         bc_map = np.array(bc_map, dtype=int_type, order='F')
         self.bc_map = cl.array.to_device(self.queue, bc_map)
 
