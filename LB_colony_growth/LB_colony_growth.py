@@ -198,7 +198,7 @@ class Velocity_Set(object):
         const_flags = cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR
 
         self.kernel_args['num_jumpers'] = self.num_jumpers
-        self.kernel_args['w'] = self.w
+        self.kernel_args['w'] = cl.Buffer(self.context, const_flags, hostbuf=self.w)
         self.kernel_args['c_vec'] = cl.Buffer(self.context, const_flags, hostbuf=self.c_vec)
         self.kernel_args['c_mag'] = cl.Buffer(self.context, const_flags, hostbuf=self.c_mag)
         self.kernel_args['cs'] = self.cs
@@ -345,6 +345,8 @@ class Autogen_Kernel(object):
         additional_cl_args = [sim.queue, sim.global_size, sim.local_size]
 
         self.arg_list = additional_cl_args + self.arg_list
+
+        print self.arg_list
 
     def run(self):
         """Usually attaches a .wait() on the return value."""
