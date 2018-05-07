@@ -336,43 +336,20 @@ class DLA_Colony(object):
         self.bc_map = cl.array.to_device(self.queue, bc_map)
 
         ## Initialize hydrodynamic variables
-        nx = self.ctx_info['nx']
-        ny = self.ctx_info['nz']
-        nz = None
-        if self.ctx_info['dimension'] == 3:
-            nz = self.ctx_info['nz']
-
         rho_host = np.zeros(self.get_dimension_tuple(), dtype=num_type, order='F')
         self.rho = cl.array.to_device(self.queue, rho_host)
 
         # Intitialize the underlying feq equilibrium field
-        feq_host = np.zeros((self.nx, self.ny, self.num_populations, self.num_jumpers), dtype=num_type, order='F')
+        feq_host = np.zeros(self.get_jumper_tuple(), dtype=num_type, order='F')
         self.feq = cl.array.to_device(self.queue, feq_host)
 
-        f_host = np.zeros((self.nx, self.ny, self.num_populations, self.num_jumpers), dtype=num_type, order='F')
+        f_host = np.zeros(self.get_jumper_tuple(), dtype=num_type, order='F')
         self.f = cl.array.to_device(self.queue, f_host)
         self.f_streamed = self.f.copy()
-
-        # Initialize G: the body force acting on each phase
-        Gx_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=num_type, order='F')
-        Gy_host = np.zeros((self.nx, self.ny, self.num_populations), dtype=num_type, order='F')
-        self.Gx = cl.array.to_device(self.queue, Gx_host)
-        self.Gy = cl.array.to_device(self.queue, Gy_host)
 
         # Create list corresponding to all of the different fluids
         self.fluid_list = []
         self.tau_arr = []
-
-        self.additional_collisions = [] # Takes into account growth, other things that can influence collisions
-        self.additional_forces = []  # Takes into account other forces, i.e. surface tension
-
-        self.poisson_solver = None # To solve the poisson & screened poisson equation, if necessary.
-        self.poisson_force_active = False
-        self.poisson_source_index = None
-        self.poisson_force_index = None
-        self.poisson_amp = None
-        self.poisson_xgrad = None
-        self.poisson_ygrad = None
 
     def get_dimension_tuple(self):
 
@@ -385,6 +362,9 @@ class DLA_Colony(object):
             return (nx, ny)
         elif dimension == 3:
             return (nx, ny, nz)
+
+    def get_jumper_tuple(self):
+        return self.get_dimension_tuple() + (self.velocity_set.num_jumpers)
 
     def add_fluid(self, fluid):
         self.fluid_list.append(fluid)
