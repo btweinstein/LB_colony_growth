@@ -358,7 +358,7 @@ class DLA_Colony(object):
         self.init_opencl()      # Initializes all items required to run OpenCL code
 
         # Convert the list of k's, d's, and m_reproduce to buffer
-
+        self.k_list = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=self.lb_G)
 
         # Initialize the velocity set...and other important context-wide
         # variables.
