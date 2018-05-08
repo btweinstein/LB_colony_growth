@@ -55,10 +55,10 @@ inline int get_spatial_index_3(
 }
 
 inline int get_spatial_index_4(
-    int x, int y, int z, int jump_id,
-    int x_size, int y_size, int z_size, int num_jumpers)
+    const int x, const int y, const int z, const int jump_id,
+    const int x_size, const int y_size, const int z_size, const int num_jumpers)
 {
-    return jump_id * z_size*y_size *x_size + z*y_size*x_size + y*x_size + x;
+    return jump_id * z_size*y_size*x_size + z*y_size*x_size + y*x_size + x;
 }
 
 ### Helpful filters ###
@@ -243,7 +243,6 @@ int bc_index = get_spatial_index_2(x + halo, y + halo, nx_bc, ny_bc);
 % elif dimension == 3:
 int bc_index = get_spatial_index_3(x + halo, y + halo, z + halo, nx_bc, ny_bc, nz_bc);
 % endif
-
 const int node_type = bc_map_global[bc_index];
 </%def>
 
@@ -524,19 +523,17 @@ update_after_streaming(
 <%def name='update_hydro()' buffered='True' filter='trim'>
 // Update rho!
 ${num_type} new_rho = 0;
+${num_type} fuck = f_global[spatial_index];
+printf("%d \n", spatial_index);
+printf("%f \n", fuck);
 
 for(int jump_id=0; jump_id < num_jumpers; jump_id++){
     ${define_jump_index() | wrap1}
 
     new_rho += f_global[jump_index];
-
-    printf("jump index %d \n", jump_index);
-    printf("in loop %f \n", new_rho);
 }
 
-printf(" out of loop %f \n", new_rho);
-
-if (node_type != FLUID_NODE) new_rho = 0; // No density if not in the fluid
+//if (node_type != FLUID_NODE) new_rho = 0; // No density if not in the fluid
 rho_global[spatial_index] = new_rho;
 </%def>
 
