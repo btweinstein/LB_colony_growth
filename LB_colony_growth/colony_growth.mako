@@ -475,8 +475,6 @@ else if (streamed_bc < 0){ // You are at a population node
     streamed_index_global = jump_index;
 }
 
-//printf("%d \n", streamed_index_global);
-
 
 //Need to write to the streamed buffer...otherwise out of sync problems will occur
 f_streamed_global[streamed_index_global] = f_after_collision;
@@ -495,7 +493,7 @@ f_streamed_global[streamed_index_global] = f_after_collision;
         cur_kernel_list.append(['nz_bc', 'const int nz_bc'])
 
     cur_kernel_list.append(['f', '__global '+num_type+' *f_global'])
-    cur_kernel_list.append(['feq', '__global __read_only '+num_type+' *feq_global'])
+    cur_kernel_list.append(['feq', '__global '+num_type+' *feq_global'])
     cur_kernel_list.append(['rho', '__global '+num_type+' *rho_global'])
 
     # Velocity set info
@@ -530,10 +528,14 @@ ${num_type} new_rho = 0;
 for(int jump_id=0; jump_id < num_jumpers; jump_id++){
     ${define_jump_index() | wrap1}
 
-    ${num_type} cur_f = f_global[jump_index];
+    new_rho += f_global[jump_index];
 
-    new_rho += cur_f;
+    printf("jump index %d \n", jump_index);
+    printf("in loop %f \n", new_rho);
 }
+
+printf(" out of loop %f \n", new_rho);
+
 if (node_type != FLUID_NODE) new_rho = 0; // No density if not in the fluid
 rho_global[spatial_index] = new_rho;
 </%def>
