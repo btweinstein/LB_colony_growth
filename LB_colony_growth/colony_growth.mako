@@ -335,7 +335,7 @@ ${identifier} streamed_index_global = get_spatial_index_3(
     cur_kernel_list.append(['c_vec', '__constant int *c_vec'])
     cur_kernel_list.append(['c_mag', '__constant '+num_type+' *c_mag'])
     cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
-    cur_kernel_list.append(['reflect_list', '__constant '+num_type+' *reflect_list'])
+    cur_kernel_list.append(['reflect_list', '__constant int *reflect_list'])
 %>
 
 __kernel void
