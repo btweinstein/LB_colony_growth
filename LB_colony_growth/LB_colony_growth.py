@@ -456,6 +456,17 @@ class DLA_Colony(object):
         # Now initialize the nonequilibrium f
         self.init_pop(amplitude=f_rand_amp) # Based on feq, create the hopping non-equilibrium fields
 
+        # Initialize the random generator
+        self.random_generator = cl.clrandom.PhiloxGenerator(self.context)
+        # Draw random normals for each population
+        random_host = np.ones(self.get_dimension_tuple(), dtype=num_type, order='F')
+        self.rand_array = cl.array.to_device(self.queue, random_host)
+
+        self.random_generator.fill_uniform(self.rand_array, queue=self.queue)
+        self.rand_array.finish()
+
+        self.kernel_args['rand'] = self.rand_array.data
+
         # Generate the rest of the needed kernels
         ker = self.kernels
         self.collide_and_propagate = Autogen_Kernel('collide_and_propagate', ker.collide_and_propagate, self)
