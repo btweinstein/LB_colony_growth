@@ -491,7 +491,7 @@ class DLA_Colony(object):
             return (nx, ny, nz)
 
     def get_jumper_tuple(self):
-        return self.get_dimension_tuple() + (self.velocity_set.num_jumpers)
+        return self.get_dimension_tuple() + (int(self.velocity_set.num_jumpers),)
 
     def init_opencl(self):
         """
