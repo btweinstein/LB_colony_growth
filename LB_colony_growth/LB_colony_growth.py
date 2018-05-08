@@ -390,6 +390,8 @@ class DLA_Colony(object):
         self.init_opencl()      # Initializes all items required to run OpenCL code
 
         # Convert the list of k's and m_reproduce to buffer
+        assert k_list is not None, 'Need k for each allele'
+        assert m_reproduce_list is not None, 'Need mass to reproduce for each allele'
         self.k_list = np.array(k_list, dtype=num_type, order='F')
         self.m_reproduce_list = np.array(m_reproduce_list, dtype=num_type, order='F')
 
@@ -397,6 +399,8 @@ class DLA_Colony(object):
 
         self.kernel_args['k_list'] = cl.Buffer(self.context, const_flags, hostbuf=self.k_list)
         self.kernel_args['m_reproduce_list'] = cl.Buffer(self.context, const_flags, hostbuf=self.m_reproduce_list)
+
+        assert D is not None, 'Need diffusion constant D'
 
         self.D = num_type(D)
         self.kernel_args['D'] = self.D
@@ -417,6 +421,8 @@ class DLA_Colony(object):
         self.kernel_args['omega'] = self.omega
 
         ## Initialize the node map...user is responsible for passing this in correctly.
+        assert bc_map is not None, 'Need map of boundary conditions...'
+
         bc_map = np.array(bc_map, dtype=int_type, order='F')
         self.bc_map = cl.array.to_device(self.queue, bc_map)
         self.bc_map_streamed = self.bc_map.copy()
@@ -428,10 +434,12 @@ class DLA_Colony(object):
         print 'global_size_bc:', self.global_size_bc
 
         ## Initialize hydrodynamic variables
+        assert rho is not None, 'Need input initial density'
         rho_host = np.array(rho, dtype=num_type, order='F')
         self.rho = cl.array.to_device(self.queue, rho_host)
         self.kernel_args['rho'] = self.rho.data
 
+        assert absorbed_mass is not None, 'Need initial absorbed mass for each cell'
         absorbed_mass_host = np.array(absorbed_mass, dtype=num_type, order='F')
         self.absorbed_mass = cl.array.to_device(self.queue, absorbed_mass_host)
         self.kernel_args['absorbed_mass'] = self.absorbed_mass.data
