@@ -466,7 +466,7 @@ class DLA_Colony(object):
         f_host *= perturb
 
         # Now send f to the GPU
-        self.f = cl.array.to_device(self.queue, f_host)
+        self.f[...] = f_host
         self.f_streamed = self.f.copy()
 
 
