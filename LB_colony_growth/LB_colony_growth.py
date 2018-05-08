@@ -216,14 +216,19 @@ class Velocity_Set(object):
         self.kernel_args['buf_ny'] = self.buf_ny
         self.kernel_args['buf_nz'] = self.buf_nz
 
+        # Add the ability to create local memory
+        self.kernel_args['local_mem_num'] = lambda: self.create_local_memory(self.ctx_info['num_type'])
+        self.kernel_args['local_mem_int'] = lambda: self.create_local_memory('int')
+
     def create_local_memory(self, dtype):
 
         num_size = None
+
         if dtype == 'double':
             num_size = ct.sizeof(ct.c_double)
         elif dtype == 'float':
             num_size = ct.sizeof(ct.c_float)
-        elif num_type == 'int':
+        elif dtype == 'int':
             num_size = ct.sizeof(ct.c_int)
 
         num_elements = self.buf_nx * self.buf_ny
@@ -443,9 +448,9 @@ class DLA_Colony(object):
 
         # Generate the rest of the needed kernels
         ker = self.kernels
-        self.collide_and_propagate = Autogen_Kernel('collide_and_propagate', ker.collide_and_propagate, self)
-        self.update_after_streaming = Autogen_Kernel('update_after_streaming', ker.update_after_streaming, self)
-        self.reproduce = Autogen_Kernel('reproduce', ker.reproduce, self)
+        #self.collide_and_propagate = Autogen_Kernel('collide_and_propagate', ker.collide_and_propagate, self)
+        #self.update_after_streaming = Autogen_Kernel('update_after_streaming', ker.update_after_streaming, self)
+        #self.reproduce = Autogen_Kernel('reproduce', ker.reproduce, self)
 
 
     def get_dimension_tuple(self):
