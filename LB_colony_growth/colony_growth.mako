@@ -502,9 +502,7 @@ f_streamed_global[streamed_index_global] = f_after_collision;
 
 __kernel void
 update_after_streaming(
-<%
-    print_kernel_args(cur_kernel_list)
-%>
+<% print_kernel_args(cur_kernel_list) %>
 )
 {
     // Get info about where thread is located in global memory
