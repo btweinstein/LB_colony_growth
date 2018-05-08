@@ -178,13 +178,13 @@ if (idx_2d < buf_ny * buf_nx) {
 if (idx_1d < buf_nx) {
     for (int row = 0; row < buf_ny; row++) {
         // Read in 1-d slices
-        int temp_x = buf_corner_x + idx_1d + halo;
-        int temp_y = buf_corner_y + row + halo;
+        int temp_x = buf_corner_x + idx_1d;
+        int temp_y = buf_corner_y + row;
 
         // If in the bc_map...
         int value = ${default_value};
-        if((temp_x < nx_bc) && (temp_x > 0) && (temp_y < ny_bc) && (temp_y > 0)){
-            int temp_index = get_spatial_index_2(temp_x, temp_y, nx_bc, ny_bc);
+        if((temp_x < nx + halo) && (temp_x > -halo) && (temp_y < ny + halo) && (temp_y > -halo)){
+            int temp_index = get_spatial_index_2(temp_x + halo, temp_y + halo, nx_bc, ny_bc);
             value = ${var_name}[temp_index];
         }
 
@@ -195,6 +195,7 @@ if (idx_1d < buf_nx) {
 if (idx_2d < buf_ny * buf_nx) {
     for (int row = 0; row < buf_nz; row++) {
         // Read in 2d-slices
+        //TODO: NEED TO FIX THIS SO THAT IT WORKS THE SAME WAY AS 2D!
         int temp_x = buf_corner_x + idx_2d % buf_nx + halo;
         int temp_y = buf_corner_y + idx_2d/buf_ny + halo;
         int temp_z = buf_corner_z + row + halo;
@@ -352,7 +353,6 @@ collide_and_propagate(
 
     barrier(CLK_LOCAL_MEM_FENCE);
     ${read_to_local('rho_global', 'rho_local', 0) | wrap1}
-    barrier(CLK_LOCAL_MEM_FENCE);
     ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN') | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -425,7 +425,7 @@ ${define_all_c()}
 ${define_streamed_index_local()}
 
 const int streamed_bc = bc_map_local[streamed_index_local];
-printf("%d \n", streamed_bc);
+printf("%d %d %d \n", streamed_bc, x, y);
 
 int streamed_index_global = -1; // Initialize to a nonsense value
 
