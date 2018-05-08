@@ -346,11 +346,12 @@ class DLA_Colony(object):
         self.f = cl.array.to_device(self.queue, f_host)
         self.f_streamed = self.f.copy()
 
-        self.kernel_args['f'] = self.f.data
-        self.kernel_args['f_streamed'] = self.f_streamed.data
-
         # Now initialize the nonequilibrium f
         self.init_pop(amplitude=f_rand_amp) # Based on feq, create the hopping non-equilibrium fields
+
+        # This needs to occur AFTER the population is initialized!
+        self.kernel_args['f'] = self.f.data
+        self.kernel_args['f_streamed'] = self.f_streamed.data
 
         # Initialize the random generator
         self.random_generator = cl.clrandom.PhiloxGenerator(self.context)

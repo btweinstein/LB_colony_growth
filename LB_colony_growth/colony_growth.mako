@@ -523,10 +523,6 @@ update_after_streaming(
 <%def name='update_hydro()' buffered='True' filter='trim'>
 // Update rho!
 ${num_type} new_rho = 0;
-${num_type} fuck = f_global[spatial_index];
-printf("%d \n", spatial_index);
-printf("%f \n", fuck);
-
 for(int jump_id=0; jump_id < num_jumpers; jump_id++){
     ${define_jump_index() | wrap1}
 
