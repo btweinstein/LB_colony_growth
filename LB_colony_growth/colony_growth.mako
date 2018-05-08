@@ -451,7 +451,7 @@ else if (streamed_bc < 0){ // You are at a population node
     // Determine Cwall via finite difference...
 
     // Alleles are negative...need to convert to an index
-    const int allele_index = -1*node_type - 1;
+    const int allele_index = -1*streamed_bc - 1;
 
     const ${num_type} cur_k = k[allele_index];
 
