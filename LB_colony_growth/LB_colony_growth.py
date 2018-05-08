@@ -14,6 +14,8 @@ import mako.runtime as mrt
 import StringIO as sio
 import weakref
 
+import inspect
+
 # Required to draw obstacles
 import skimage as ski
 import skimage.draw
@@ -222,6 +224,8 @@ class Velocity_Set(object):
 
     def create_local_memory(self, dtype):
 
+        print 'Creating local memory of', dtype, 'type...'
+
         num_size = None
 
         if dtype == 'double':
@@ -347,6 +351,12 @@ class Autogen_Kernel(object):
 
         self.arg_list = [py_kernel_args[z] for z in python_args_needed]
 
+        # Loop over the arg_list...if the argument is a function, call it!
+        for i in range(len(self.arg_list)):
+            value = self.arg_list[i]
+            if inspect.isfunction(value):
+                self.arg_list[i] = value()
+
         additional_cl_args = [sim.queue, sim.global_size, sim.local_size]
 
         self.arg_list = additional_cl_args + self.arg_list
@@ -448,9 +458,9 @@ class DLA_Colony(object):
 
         # Generate the rest of the needed kernels
         ker = self.kernels
-        #self.collide_and_propagate = Autogen_Kernel('collide_and_propagate', ker.collide_and_propagate, self)
-        #self.update_after_streaming = Autogen_Kernel('update_after_streaming', ker.update_after_streaming, self)
-        #self.reproduce = Autogen_Kernel('reproduce', ker.reproduce, self)
+        self.collide_and_propagate = Autogen_Kernel('collide_and_propagate', ker.collide_and_propagate, self)
+        self.update_after_streaming = Autogen_Kernel('update_after_streaming', ker.update_after_streaming, self)
+        self.reproduce = Autogen_Kernel('reproduce', ker.reproduce, self)
 
 
     def get_dimension_tuple(self):
