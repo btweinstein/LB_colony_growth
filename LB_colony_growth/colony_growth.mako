@@ -475,7 +475,7 @@ else if (streamed_bc < 0){ // You are at a population node
     streamed_index_global = jump_index;
 }
 
-printf("%d \n", streamed_index_global);
+//printf("%d \n", streamed_index_global);
 
 
 //Need to write to the streamed buffer...otherwise out of sync problems will occur
