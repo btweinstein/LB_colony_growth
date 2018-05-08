@@ -433,7 +433,7 @@ class DLA_Colony(object):
         self.kernel_args['rho'] = self.rho.data
 
         absorbed_mass_host = np.array(absorbed_mass, dtype=num_type, order='F')
-        self.absorbed_mass = cl.array.to_device(self.queue, rho_host)
+        self.absorbed_mass = cl.array.to_device(self.queue, absorbed_mass_host)
         self.kernel_args['absorbed_mass'] = self.absorbed_mass.data
 
         # Intitialize the underlying feq equilibrium field
@@ -442,9 +442,7 @@ class DLA_Colony(object):
         self.kernel_args['feq'] = self.feq.data
 
         self.init_feq = Autogen_Kernel('init_feq', self.kernels.init_feq, self)
-
         self.init_feq.run().wait() # Based on the input hydrodynamic fields, create feq
-
 
         f_host = np.zeros(self.get_jumper_tuple(), dtype=num_type, order='F')
         self.f = cl.array.to_device(self.queue, f_host)
@@ -466,6 +464,12 @@ class DLA_Colony(object):
         self.rand_array.finish()
 
         self.kernel_args['rand'] = self.rand_array.data
+
+        # Create global memory required for reproduction
+        can_reproduce = np.array([0], dtype=int_type, order='F')
+        self.can_reproduce = cl.array.to_device(self.queue, can_reproduce)
+
+        self.kernel_args['can_reproduce_pointer'] = self.can_reproduce.data
 
         # Generate the rest of the needed kernels
         ker = self.kernels
