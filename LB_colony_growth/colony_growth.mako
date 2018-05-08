@@ -432,7 +432,7 @@ if (streamed_bc == FLUID_NODE){
     ## As streamed_index_global is already initialized, no identifer is needed
     ${define_streamed_index_global(identifier='') | wrap1}
 }
-else if (streamed_bc == WALL_NODE){ // Bounceback; impenetrable boundary
+else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bounceback.
     int reflect_id = reflect_list[jump_id];
     % if dimension == 2:
     int reflect_index = get_spatial_index_3(x, y, reflect_id, nx, ny, num_jumpers);
@@ -440,7 +440,7 @@ else if (streamed_bc == WALL_NODE){ // Bounceback; impenetrable boundary
     int reflect_index = get_spatial_index_4(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
     % endif
 
-    f_streamed_global[reflect_index] = f_after_collision;
+    f_streamed_global[reflect_index] = -f_after_collision;
 
     // The streamed part collides without moving.
 
