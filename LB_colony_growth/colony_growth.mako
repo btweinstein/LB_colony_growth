@@ -341,9 +341,7 @@ ${identifier} streamed_index_global = get_spatial_index_3(
 
 __kernel void
 collide_and_propagate(
-<%
-    print_kernel_args(cur_kernel_list)
-%>
+<% print_kernel_args(cur_kernel_list) %>
 )
 {
     // Get info about where thread is located in global memory
@@ -362,6 +360,7 @@ collide_and_propagate(
     ${if_thread_in_domain() | wrap1}{
 
         const int node_type = bc_map_local[local_index];
+
         if(node_type == FLUID_NODE){
             for(int jump_id=0; jump_id < num_jumpers; jump_id++){
                 ${define_jump_index() | wrap4}
@@ -475,6 +474,9 @@ else if (streamed_bc < 0){ // You are at a population node
     // The streamed part collides without moving.
     streamed_index_global = jump_index;
 }
+
+printf("%d \n", streamed_index_global);
+
 
 //Need to write to the streamed buffer...otherwise out of sync problems will occur
 f_streamed_global[streamed_index_global] = f_after_collision;
