@@ -352,6 +352,7 @@ collide_and_propagate(
 
     barrier(CLK_LOCAL_MEM_FENCE);
     ${read_to_local('rho_global', 'rho_local', 0) | wrap1}
+    barrier(CLK_LOCAL_MEM_FENCE);
     ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN') | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -424,6 +425,7 @@ ${define_all_c()}
 ${define_streamed_index_local()}
 
 const int streamed_bc = bc_map_local[streamed_index_local];
+printf("%d \n", streamed_bc);
 
 int streamed_index_global = -1; // Initialize to a nonsense value
 
