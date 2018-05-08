@@ -448,7 +448,7 @@ else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bouncebac
 }
 
 else if (streamed_bc < 0){ // You are at a population node
-    // Determine Cwall via finite difference
+    // Determine Cwall via finite difference...
 
     // Alleles are negative...need to convert to an index
     const int allele_index = -1*node_type - 1;
