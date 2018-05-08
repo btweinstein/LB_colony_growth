@@ -734,3 +734,33 @@ if (space_to_reproduce){
 }
 
 </%def>
+
+######### Copy kernels #########
+<%
+    cur_kernel = 'copy_streamed_onto_f'
+    kernel_arguments[cur_kernel] = []
+    cur_kernel_list = kernel_arguments[cur_kernel]
+
+    # Needed global variables
+    cur_kernel_list.append(['f_streamed', '__global '+num_type+' *f_streamed_global'])
+    cur_kernel_list.append(['f', '__global '+num_type+' *f_global'])
+
+    # Velocity set info
+    cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
+%>
+
+__kernel void
+copy_streamed_onto_f(
+<% print_kernel_args(cur_kernel_list) %>
+)
+{
+    ${define_thread_location() | wrap1}
+
+    ${if_thread_in_domain() | wrap1}{
+        for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
+            ${define_jump_index()}
+
+            f_global[jump_index] = f_streamed_global[jump_index];
+        }
+    }
+}

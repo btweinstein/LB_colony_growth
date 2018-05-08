@@ -375,10 +375,13 @@ class DLA_Colony(object):
         self.update_after_streaming = Autogen_Kernel('update_after_streaming', ker.update_after_streaming, self)
         self.reproduce = Autogen_Kernel('reproduce', ker.reproduce, self)
 
+        self.copy_streamed_onto_f = Autogen_Kernel('copy_streamed_onto_f', ker.copy_streamed_onto_f, self)
+
     def run(self, num_iterations):
         for i in range(num_iterations):
             self.collide_and_propagate.run().wait()
-            self.update_after_streaming.run().wait()
+            self.copy_streamed_onto_f.run().wait() # TODO: Use the ABA access patern for streaming
+            # self.update_after_streaming.run().wait()
             # Need the reproduction step next
 
     def get_dimension_tuple(self):
