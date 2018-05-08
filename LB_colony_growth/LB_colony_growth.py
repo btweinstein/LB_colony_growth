@@ -180,8 +180,8 @@ class Velocity_Set(object):
         self.c_mag = None
         self.cs = None
 
-        self.reflect_index = None
-        self.slip_index = None
+        self.reflect_list = None
+        self.slip_list = None
 
         self.halo = None
 
@@ -205,8 +205,8 @@ class Velocity_Set(object):
         self.kernel_args['c_mag'] = cl.Buffer(self.context, const_flags, hostbuf=self.c_mag)
         self.kernel_args['cs'] = self.cs
 
-        self.kernel_args['reflect_index'] = cl.Buffer(self.context, const_flags, hostbuf=self.reflect_index)
-        self.kernel_args['slip_index'] = cl.Buffer(self.context, const_flags, hostbuf=self.slip_index)
+        self.kernel_args['reflect_list'] = cl.Buffer(self.context, const_flags, hostbuf=self.reflect_list)
+        self.kernel_args['slip_list'] = cl.Buffer(self.context, const_flags, hostbuf=self.slip_list)
 
         self.kernel_args['halo'] = self.halo
 
@@ -267,8 +267,8 @@ class D2Q9(Velocity_Set):
         self.num_jumpers = int_type(9)  # Number of jumpers for the D2Q9 lattice: 9
 
         # Create arrays for bounceback and zero-shear/symmetry conditions
-        self.reflect_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
-        for i in range(self.reflect_index.shape[0]):
+        self.reflect_list = np.zeros(self.num_jumpers, order='F', dtype=int_type)
+        for i in range(self.reflect_list.shape[0]):
             cur_cx = self.cx[i]
             cur_cy = self.cy[i]
 
@@ -276,7 +276,7 @@ class D2Q9(Velocity_Set):
             reflect_cy = -cur_cy
 
             opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
-            self.reflect_index[i] = np.where(opposite)[0][0]
+            self.reflect_list[i] = np.where(opposite)[0][0]
 
         # When you go out of bounds in the x direction...and need to reflect back keeping y momentum
         slip_x_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
@@ -302,7 +302,7 @@ class D2Q9(Velocity_Set):
             opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
             slip_y_index[i] = np.where(opposite)[0][0]
 
-        self.slip_index = np.array([slip_x_index, slip_y_index])
+        self.slip_list = np.array([slip_x_index, slip_y_index])
 
 
         # Define other important info

@@ -595,12 +595,12 @@ init_feq(
     cur_kernel_list = kernel_arguments[cur_kernel]
 
     cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map_global'])
+    cur_kernel_list.append(['bc_map_streamed', '__global int *bc_map_streamed_global'])
     cur_kernel_list.append(['nx_bc', 'const int nx_bc'])
     cur_kernel_list.append(['ny_bc', 'const int ny_bc'])
     if dimension == 3:
         cur_kernel_list.append(['nz_bc', 'const int nz_bc'])
 
-    cur_kernel_list.append(['streamed_bc_map', '__global int *streamed_bc_map_global'])
     cur_kernel_list.append(['absorbed_mass', '__global '+num_type+' *absorbed_mass_global'])
     cur_kernel_list.append(['rand', '__global '+num_type+' *rand_global'])
 
@@ -722,7 +722,7 @@ if (space_to_reproduce){
     //TODO: This can probably be sped up by doing comparisons with local, *then* going to global...
     // Copy your node type into the new node atomically IF the fluid node is still there...
     const int prev_type = atomic_cmpxchg(
-        &streamed_bc_map_global[streamed_index_global],
+        &bc_map_streamed_global[streamed_index_global],
         FLUID_NODE,
         node_type
     );
