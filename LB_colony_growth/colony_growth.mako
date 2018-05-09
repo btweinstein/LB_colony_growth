@@ -450,7 +450,7 @@ else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bouncebac
     int reflect_index = get_spatial_index_4(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
     % endif
 
-    f_streamed_global[reflect_index] = -f_after_collision;
+    f_streamed_global[reflect_index] = f_after_collision;
 
     // The streamed part collides without moving.
 
