@@ -452,9 +452,7 @@ else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bouncebac
 
     f_streamed_global[reflect_index] = f_after_collision;
 
-    // The streamed part collides without moving.
-
-    streamed_index_global = jump_index;
+    // Current population is replaced...
 }
 /*
 else if (streamed_bc == NOT_IN_DOMAIN){
@@ -483,13 +481,13 @@ else if (streamed_bc < 0){ // You are at a population node
     % endif
 
     f_streamed_global[reflect_index] = -f_after_collision + 2*cur_w*rho_wall;
-
-    // The streamed part collides without moving.
-    streamed_index_global = jump_index;
 }
 
 //Need to write to the streamed buffer...otherwise out of sync problems will occur
-f_streamed_global[streamed_index_global] = f_after_collision;
+
+if (streamed_index_global != -1){//This indicates you shouldn't update...
+    f_streamed_global[streamed_index_global] = f_after_collision;
+}
 </%def>
 
 ######### Update after streaming kernel #########
