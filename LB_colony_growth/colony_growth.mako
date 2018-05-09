@@ -245,14 +245,19 @@ const int spatial_index = get_spatial_index_3(x, y, z, nx, ny, nz);
 </%def>
 
 ### Read node type from global memory
+<%def name='define_global_bc_index()' buffered='True', filter='trim'>
+% if dimension == 2:
+const int global_bc_index = get_spatial_index_2(x + halo, y + halo, nx_bc, ny_bc);
+% elif dimension == 3:
+const int global_bc_index = get_spatial_index_3(x + halo, y + halo, z + halo, nx_bc, ny_bc, nz_bc);
+% endif
+
+</%def>
+
 <%def name='read_node_type_from_global()' buffered='True' filter='trim'>
 // Remember, bc-map is larger than nx, ny, nz by a given halo!
-% if dimension == 2:
-int bc_index = get_spatial_index_2(x + halo, y + halo, nx_bc, ny_bc);
-% elif dimension == 3:
-int bc_index = get_spatial_index_3(x + halo, y + halo, z + halo, nx_bc, ny_bc, nz_bc);
-% endif
-const int node_type = bc_map_global[bc_index];
+${define_global_bc_index()}
+const int node_type = bc_map_global[global_bc_index];
 </%def>
 
 
@@ -267,10 +272,10 @@ const int jump_index = get_spatial_index_4(x, y, z, ${jump_id}, nx, ny, nz, num_
 </%def>
 
 
-<%def name='define_all_c(jump_id="jump_id", identifier="const int")' buffered='True' filter='trim'>
+<%def name='define_all_c(jump_id="jump_id", identifier="const int ")' buffered='True' filter='trim'>
 
-${identifier} cur_cx = c_vec[get_spatial_index_2(0, ${jump_id}, ${dimension}, num_jumpers)];
-${identifier} cur_cy = c_vec[get_spatial_index_2(1, ${jump_id}, ${dimension}, num_jumpers)];
+${identifier}cur_cx = c_vec[get_spatial_index_2(0, ${jump_id}, ${dimension}, num_jumpers)];
+${identifier}cur_cy = c_vec[get_spatial_index_2(1, ${jump_id}, ${dimension}, num_jumpers)];
 %if dimension == 3:
 ${identifier} cur_cz = c_vec[get_spatial_index_2(2, jump_id, ${dimension}, num_jumpers)];
 %endif
@@ -731,12 +736,22 @@ if (space_to_reproduce){
     // The final jump_id corresponds to the direction to jump!
     // Same with the current jump directions
 
-    ${define_streamed_index_global() | wrap1}
+    % if dimension == 2:
+    const int streamed_global_bc_index = get_spatial_index_2(
+        x + cur_cx + halo, y + cur_cy + halo,
+        nx_bc, ny_bc
+    );
+    % elif dimension == 3:
+    const int streamed_global_bc_index = get_spatial_index_3(
+        x + cur_cx + halo, y + cur_cy + halo, z + cur_cz + halo,
+        nx_bc, ny_bc, nz_bc
+    );
+    % endif
 
     //TODO: This can probably be sped up by doing comparisons with local, *then* going to global...
     // Copy your node type into the new node atomically IF the fluid node is still there...
     const int prev_type = atomic_cmpxchg(
-        &bc_map_streamed_global[streamed_index_global],
+        &bc_map_streamed_global[streamed_global_bc_index],
         FLUID_NODE,
         node_type
     );
