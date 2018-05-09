@@ -430,8 +430,17 @@ int streamed_index_global = -1; // Initialize to a nonsense value
 
 if (streamed_bc == FLUID_NODE){
     // Propagate the collided particle distribution as appropriate
-    ## As streamed_index_global is already initialized, no identifer is needed
-    ${define_streamed_index_global(identifier='') | wrap1}
+    % if dimension == 2:
+    streamed_index_global = get_spatial_index_3(
+        x + cur_cx, y + cur_cy, jump_id,
+        nx, ny, num_jumpers
+    );
+    % elif dimension == 3:
+    streamed_index_global = get_spatial_index_4(
+        x + cur_cx, y + cur_cy, z+cur_cz, reflect_id,
+        nx, ny, nz, num_jumpers);
+    % endif
+
 }
 else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bounceback.
     int reflect_id = reflect_list[jump_id];
@@ -447,9 +456,10 @@ else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bouncebac
 
     streamed_index_global = jump_index;
 }
+/*
 else if (streamed_bc == NOT_IN_DOMAIN){
     printf("There is something wrong with the BC-map! I'm streaming to a not-defined region...");
-}
+}*/
 
 else if (streamed_bc < 0){ // You are at a population node
     // Determine Cwall via finite difference...
@@ -477,7 +487,6 @@ else if (streamed_bc < 0){ // You are at a population node
     // The streamed part collides without moving.
     streamed_index_global = jump_index;
 }
-
 
 //Need to write to the streamed buffer...otherwise out of sync problems will occur
 f_streamed_global[streamed_index_global] = f_after_collision;
