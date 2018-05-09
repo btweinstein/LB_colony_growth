@@ -427,6 +427,7 @@ ${define_streamed_index_local()}
 const int streamed_bc = bc_map_local[streamed_index_local];
 
 int streamed_index_global = -1; // Initialize to a nonsense value
+${num_type} new_f = f_after_collision;
 
 if (streamed_bc == FLUID_NODE){
     // Propagate the collided particle distribution as appropriate
@@ -440,7 +441,6 @@ if (streamed_bc == FLUID_NODE){
         x + cur_cx, y + cur_cy, z+cur_cz, reflect_id,
         nx, ny, nz, num_jumpers);
     % endif
-
 }
 else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bounceback.
     int reflect_id = reflect_list[jump_id];
@@ -450,15 +450,8 @@ else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bouncebac
     int reflect_index = get_spatial_index_4(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
     % endif
 
-    f_streamed_global[reflect_index] = f_after_collision;
-
-    // Current population is replaced...
+    streamed_index_global = reflect_index;
 }
-/*
-else if (streamed_bc == NOT_IN_DOMAIN){
-    printf("There is something wrong with the BC-map! I'm streaming to a not-defined region...");
-}*/
-
 else if (streamed_bc < 0){ // You are at a population node
     // Determine Cwall via finite difference...
 
@@ -480,14 +473,17 @@ else if (streamed_bc < 0){ // You are at a population node
     int reflect_index = get_spatial_index_4(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
     % endif
 
-    f_streamed_global[reflect_index] = -f_after_collision + 2*cur_w*rho_wall;
+    streamed_index_global = reflect_index;
+    new_f = -f_after_collision + 2*cur_w*rho_wall;
+}
+else if (streamed_bc == NOT_IN_DOMAIN){
+    printf("There is something wrong with the BC-map! I'm streaming to a not-defined region...");
 }
 
 //Need to write to the streamed buffer...otherwise out of sync problems will occur
 
-if (streamed_index_global != -1){//This indicates you shouldn't update...
-    f_streamed_global[streamed_index_global] = f_after_collision;
-}
+f_streamed_global[streamed_index_global] = new_f;
+
 </%def>
 
 ######### Update after streaming kernel #########
