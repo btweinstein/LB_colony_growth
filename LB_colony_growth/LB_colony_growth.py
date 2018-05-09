@@ -493,7 +493,7 @@ class DLA_Colony(object):
         mako_context = mrt.Context(buf, **self.ctx_info)
         template.render_context(mako_context)
 
-        with open('temp_kernels.cl', 'w') as fi:
+        with open('temp_kernels_DLA_colony.cl', 'w') as fi:
             fi.write(buf.getvalue())
 
         self.kernels = cl.Program(self.context, buf.getvalue()).build(options='')
