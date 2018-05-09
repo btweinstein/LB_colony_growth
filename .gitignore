@@ -3,3 +3,4 @@
 *~
 temp_kernels.cl
 *.pyc
+*.egg-info/
