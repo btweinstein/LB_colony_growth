@@ -183,7 +183,7 @@ if (idx_1d < buf_nx) {
 
         // If in the bc_map...
         int value = ${default_value};
-        if((temp_x < nx + halo) && (temp_x > -halo) && (temp_y < ny + halo) && (temp_y > -halo)){
+        if((temp_x < nx + halo) && (temp_x >= -halo) && (temp_y < ny + halo) && temp_y >= -halo){
             int temp_index = get_spatial_index_2(temp_x + halo, temp_y + halo, nx_bc, ny_bc);
             value = ${var_name}[temp_index];
         }
@@ -425,7 +425,7 @@ ${define_all_c()}
 ${define_streamed_index_local()}
 
 const int streamed_bc = bc_map_local[streamed_index_local];
-printf("%d %d %d \n", streamed_bc, x, y);
+printf("%d %d %d %d %d \n", streamed_bc, x, y, cur_cx, cur_cy);
 
 int streamed_index_global = -1; // Initialize to a nonsense value
 
