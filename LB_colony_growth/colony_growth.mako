@@ -394,15 +394,17 @@ for(int i=0; i < NUM_NEAREST_NEIGHBORS; i++){
 
     if (streamed_bc == FLUID_NODE){ // Scalar can diffuse in
         // Alleles are negative...need to convert to an index
+        //node_type: the allele present in this cell
+
         const int allele_index = -1*node_type - 1;
 
         const ${num_type} cur_k = k[allele_index];
 
         // Determine Cwall via finite difference
-        const ${num_type} cur_rho = rho_local[local_index];
+        const ${num_type} neighbor_rho = rho_local[streamed_index_local];
 
         const ${num_type} cur_c_mag = 1.0; // Magnitude to nearest neighbors is always one
-        const ${num_type} rho_wall = cur_rho/(1 + (cur_k*cur_c_mag)/(2*D));
+        const ${num_type} rho_wall = neighbor_rho/(1 + (cur_k*cur_c_mag)/(2*D));
 
         //Update the mass at the site accordingly
         // Flux in is k*rho_wall...and in lattice units, all additional factors are one.
