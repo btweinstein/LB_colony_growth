@@ -36,9 +36,6 @@ __constant int cz_nearest[6] = {0,  0, 0, 0, 1,-1};
 #define WALL_NODE 1
 #define NOT_IN_DOMAIN 2
 //Alleles get negative numbers as identifiers
-%for i in range(1, num_alleles + 1):
-#define ALLELE_${i} ${-1*i}
-%endfor
 
 inline int get_spatial_index_2(
     const int x, const int y,
