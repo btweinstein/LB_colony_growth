@@ -271,6 +271,7 @@ class DLA_Colony(object):
                  context=None, use_interop=False, f_rand_amp=1e-6):
 
         self.ctx_info = ctx_info
+        self.dimension = self.ctx_info['dimension']
         self.kernel_args = {}
 
         # Create global & local sizes appropriately
@@ -388,7 +389,7 @@ class DLA_Colony(object):
         self.copy_streamed_onto_bc = Autogen_Kernel('copy_streamed_onto_bc', ker.copy_streamed_onto_bc, self,
                                                     kernel_global_size=self.global_size_bc)
 
-    def run(self, num_iterations):
+    def run(self, num_iterations, reproduction_cutoff = 1000):
         for i in range(num_iterations):
             self.collide_and_propagate.run().wait()
             self.copy_streamed_onto_f.run().wait() # TODO: Use the ABA access patern for streaming
@@ -409,14 +410,23 @@ class DLA_Colony(object):
                 self.reproduce.run().wait()
                 self.copy_streamed_onto_bc.run().wait()
 
-                if self.can_reproduce[0] == int_type(1):
-                    print 'Somebody could reproduce! Running again...'
-                else:
-                    print 'Nobody could reproduce, moving on...'
                 num_times += 1
-                if num_times >= 5:
-                    break
+                if num_times >= reproduction_cutoff:
+                    assert False, "I've run the reproduction step 1000 times. Something is probably wrong. Quitting..."
 
+    def get_pop_field(self):
+        # Chop off the edge of the bc_map
+        populations = self.bc_map.get()
+        halo = self.velocity_set.halo
+        if self.dimension == 2:
+            populations = populations[halo:-halo, halo:-halo]
+        elif self.dimension == 3:
+            populations = populations[halo:-halo, halo:-halo]
+
+        # Let 0 be background. Other integers refer to populations
+        populations*= -1
+
+        return populations
 
     def get_dimension_tuple(self):
 
