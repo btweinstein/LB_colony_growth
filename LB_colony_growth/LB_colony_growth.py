@@ -150,8 +150,8 @@ class D2Q9(Velocity_Set):
         self.cx = np.array([0, 1, 0, -1, 0, 1, -1, -1, 1], order='F', dtype=int_type)  # direction vector for the x direction
         self.cy = np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=int_type)  # direction vector for the y direction
 
-        self.c_vec = np.array([self.cx, self.cy])
-        self.c_mag = np.sqrt(np.sum(self.c_vec**2, axis=0))
+        self.c_vec = np.array([self.cx, self.cy], order='F', dtype=int_type)
+        self.c_mag = np.sqrt(np.sum(self.c_vec**2, axis=0), order='F', dtype=num_type)
 
         self.cs = num_type(1. / np.sqrt(3))  # Speed of sound on the lattice
         self.num_jumpers = int_type(9)  # Number of jumpers for the D2Q9 lattice: 9
@@ -192,7 +192,7 @@ class D2Q9(Velocity_Set):
             opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
             slip_y_index[i] = np.where(opposite)[0][0]
 
-        self.slip_list = np.array([slip_x_index, slip_y_index])
+        self.slip_list = np.array([slip_x_index, slip_y_index], order='F', dtype=int_type)
 
 
         # Define other important info
