@@ -652,6 +652,7 @@ reproduce(
     // Read concentration and absorbed mass at nodes into memory
 
     barrier(CLK_LOCAL_MEM_FENCE);
+    if((x == 0) && (y == 0)) printf("\n Running kernel again! \n");
     ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN') | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -698,6 +699,7 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
 }
 
 if (space_to_reproduce){
+
     const ${num_type} rand_num = rand_global[spatial_index];
 
     bool has_chosen_direction = false;
@@ -741,8 +743,12 @@ if (space_to_reproduce){
 
     // If successful, subtract mass, because you reproduced!
     if (prev_type == FLUID_NODE){
+        printf("%d %d I was successful! \n", x, y);
         absorbed_mass_global[spatial_index] -= cur_m_reproduce;
     } // Otherwise, someone reproduced and blocked you! Try again next iteration...
+    else{
+        printf("%d %d I was blocked... :( \n", x, y);
+    }
 }
 
 </%def>

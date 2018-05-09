@@ -394,8 +394,11 @@ class DLA_Colony(object):
             self.copy_streamed_onto_f.run().wait() # TODO: Use the ABA access patern for streaming
             self.update_after_streaming.run().wait()
 
+            #plt.imshow(self.absorbed_mass.get() > 1.)
+
             # Reproduce!
             self.can_reproduce[0] = int_type(1) # Test if anyone can reproduce
+            num_times = 0
             while (self.can_reproduce[0] == 1):
                 # Generate new random numbers
                 self.random_generator.fill_uniform(self.rand_array, queue=self.queue)
@@ -410,6 +413,9 @@ class DLA_Colony(object):
                     print 'Somebody could reproduce! Running again...'
                 else:
                     print 'Nobody could reproduce, moving on...'
+                num_times += 1
+                if num_times >= 5:
+                    break
 
 
     def get_dimension_tuple(self):
