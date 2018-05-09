@@ -425,7 +425,6 @@ ${define_all_c()}
 ${define_streamed_index_local()}
 
 const int streamed_bc = bc_map_local[streamed_index_local];
-printf("%d %d %d %d %d \n", streamed_bc, x, y, cur_cx, cur_cy);
 
 int streamed_index_global = -1; // Initialize to a nonsense value
 
