@@ -211,7 +211,7 @@ class D2Q9(Velocity_Set):
         self.set_kernel_args()
 
 class Autogen_Kernel(object):
-    def __init__(self, short_name, opencl_kernel, sim):
+    def __init__(self, short_name, opencl_kernel, sim, kernel_global_size=None, kernel_local_size=None):
 
         print 'Connecting python to the opencl_kernel ' + short_name + '...'
 
@@ -220,6 +220,14 @@ class Autogen_Kernel(object):
         self.opencl_kernel = opencl_kernel # The opencl kernel that is run
 
         self.sim = weakref.proxy(sim) # Need a weakref...kernel is a part of the simulation, and not vice versa
+
+        self.kernel_global_size = kernel_global_size
+        if self.kernel_global_size is None:
+            self.kernel_global_size = self.sim.global_size
+
+        self.kernel_local_size = kernel_local_size
+        if self.kernel_local_size is None:
+            self.kernel_local_size = self.sim.local_size
 
         self.arg_list = None
 
@@ -247,7 +255,7 @@ class Autogen_Kernel(object):
             if inspect.isfunction(value):
                 self.arg_list[i] = value()
 
-        additional_cl_args = [sim.queue, sim.global_size, sim.local_size]
+        additional_cl_args = [sim.queue, self.kernel_global_size, self.kernel_local_size]
 
         self.arg_list = additional_cl_args + self.arg_list
 
@@ -377,13 +385,32 @@ class DLA_Colony(object):
         self.reproduce = Autogen_Kernel('reproduce', ker.reproduce, self)
 
         self.copy_streamed_onto_f = Autogen_Kernel('copy_streamed_onto_f', ker.copy_streamed_onto_f, self)
+        self.copy_streamed_onto_bc = Autogen_Kernel('copy_streamed_onto_bc', ker.copy_streamed_onto_bc, self,
+                                                    kernel_global_size=self.global_size_bc)
 
     def run(self, num_iterations):
         for i in range(num_iterations):
             self.collide_and_propagate.run().wait()
             self.copy_streamed_onto_f.run().wait() # TODO: Use the ABA access patern for streaming
             self.update_after_streaming.run().wait()
-            # Need the reproduction step next
+
+            # Reproduce!
+            self.can_reproduce[0] = int_type(1) # Test if anyone can reproduce
+            while (self.can_reproduce[0] == 1):
+                # Generate new random numbers
+                self.random_generator.fill_uniform(self.rand_array, queue=self.queue)
+                self.rand_array.finish()
+
+                # Attempt to reproduce
+                self.can_reproduce[0] = int_type(0) # The kernel will reset the flag if anyone can reproduce
+                self.reproduce.run().wait()
+                self.copy_streamed_onto_bc.run().wait()
+
+                if self.can_reproduce[0] == int_type(1):
+                    print 'Somebody could reproduce! Running again...'
+                else:
+                    print 'Nobody could reproduce, moving on...'
+
 
     def get_dimension_tuple(self):
 

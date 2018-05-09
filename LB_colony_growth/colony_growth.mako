@@ -236,6 +236,14 @@ const int spatial_index = get_spatial_index_3(x, y, z, nx, ny, nz);
     % endif
 </%def>
 
+<%def name='if_thread_in_bc_domain()', buffered='True', filter='trim'>
+    % if dimension == 2:
+    if ((x < nx_bc) && (y < ny_bc))
+    % elif dimension == 3:
+    if ((x < nx_bc) && (y < ny_bc) && (z < nz_bc))
+    % endif
+</%def>
+
 ### Read node type from global memory
 <%def name='read_node_type_from_global()' buffered='True' filter='trim'>
 // Remember, bc-map is larger than nx, ny, nz by a given halo!
@@ -766,5 +774,32 @@ copy_streamed_onto_f(
 
             f_global[jump_index] = f_streamed_global[jump_index];
         }
+    }
+}
+
+<%
+    cur_kernel = 'copy_streamed_onto_bc'
+    kernel_arguments[cur_kernel] = []
+    cur_kernel_list = kernel_arguments[cur_kernel]
+
+    # Needed global variables
+    cur_kernel_list.append(['bc_map', '__global int *bc_map_global'])
+    cur_kernel_list.append(['bc_map_streamed', '__global int *bc_map_streamed_global'])
+
+    cur_kernel_list.append(['nx_bc', 'const int nx_bc'])
+    cur_kernel_list.append(['ny_bc', 'const int ny_bc'])
+    if dimension == 3:
+        cur_kernel_list.append(['nz_bc', 'const int nz_bc'])
+%>
+
+__kernel void
+copy_streamed_onto_bc(
+<% print_kernel_args(cur_kernel_list) %>
+)
+{
+    ${define_thread_location() | wrap1}
+
+    ${if_thread_in_bc_domain() | wrap1}{
+        bc_map_global[spatial_index] = bc_map_streamed_global[spatial_index];
     }
 }
