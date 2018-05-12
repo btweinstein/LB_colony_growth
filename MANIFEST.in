@@ -1,1 +1,1 @@
-include LB_colony_growth/colony_growth.mako
+include LB_colony_growth/*.mako
