@@ -1,12 +1,6 @@
-% if num_type=='double':
-#ifdef cl_khr_fp64
-    #pragma OPENCL EXTENSION cl_khr_fp64 : enable
-#elif defined(cl_amd_fp64)
-    #pragma OPENCL EXTENSION cl_amd_fp64 : enable
-#else
-    #error "Double precision floating point not supported by OpenCL implementation."
-#endif
-% endif
+<%namespace file='util.mako' import='*' />
+
+${enable_double_support()}
 
 // Define domain size
 #define nx ${nx}
@@ -15,7 +9,7 @@
 #define nz ${nz}
 % endif
 
-#define SMALL 1e-6
+#define SMALL 1e-10
 
 %if dimension==2:
 #define NUM_NEAREST_NEIGHBORS 4
@@ -30,12 +24,8 @@ __constant int cz_nearest[6] = {0,  0, 0, 0, 1,-1};
 
 //The code is always ok, AS LONG as the halo is one! Regardless of the stencil.
 // If any more, everything breaks.
-#define halo 1
 
-#define FLUID_NODE 0
-#define WALL_NODE 1
-#define NOT_IN_DOMAIN 2
-//Alleles get negative numbers as identifiers
+${define_node_types()}
 
 inline int get_spatial_index_2(
     const int x, const int y,
