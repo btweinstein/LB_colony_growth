@@ -412,7 +412,7 @@ class DLA_Colony(object):
 
                 num_times += 1
                 if num_times >= reproduction_cutoff:
-                    assert False, "I've run the reproduction step 1000 times. Something is probably wrong. Quitting..."
+                    assert False, "I've run the reproduction step "+str(reproduction_cutoff)+" times. Something is probably wrong. Quitting..."
 
     def get_pop_field(self):
         # Chop off the edge of the bc_map
