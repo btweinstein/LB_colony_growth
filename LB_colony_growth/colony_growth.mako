@@ -11,6 +11,9 @@ ${enable_double_support()}
 
 #define SMALL 1e-10
 
+// Everything works as long as halo is one...check for that
+# define halo 1
+
 %if dimension==2:
 #define NUM_NEAREST_NEIGHBORS 4
 __constant int cx_nearest[4] = {1, -1, 0, 0};
@@ -105,7 +108,7 @@ const int buf_z = lz + halo;
 
 // Index of thread within our work-group
 % if dimension == 2:
-const int idx_1d = get_spatial_index_2(lx, ly, get_local_size(0), get_local_size(1));
+const int idx_1d = ${get_spatial_index('lx', 'ly', 'get_local_size(0)', 'get_local_size(1)')};
 % elif dimension == 3:
 const int idx_2d = get_spatial_index_3(lx, ly, lz, get_local_size(0), get_local_size(1), get_local_size(2));
 % endif
