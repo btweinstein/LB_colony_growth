@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import mako as m
 import mako.template as mte
 import mako.runtime as mrt
+import mako.lookup as mlo
 import StringIO as sio
 import weakref
 
@@ -483,13 +484,13 @@ class DLA_Colony(object):
         # Create a simple queue
         self.queue = cl.CommandQueue(self.context, self.context.devices[0],
                                      properties=cl.command_queue_properties.PROFILING_ENABLE)
-        # Compile our OpenCL code...render MAKO first.
-        template = mte.Template(
-            filename= file_dir + '/colony_growth.mako',
-            strict_undefined=True
-        )
-        buf = sio.StringIO()
 
+        # Compile our OpenCL code...render MAKO first.
+        lookup = mlo.TemplateLookup(directories=[file_dir])
+        template = lookup.get_template('colony_growth.mako')
+        template.strict_undefined = True
+
+        buf = sio.StringIO()
         mako_context = mrt.Context(buf, **self.ctx_info)
         template.render_context(mako_context)
 

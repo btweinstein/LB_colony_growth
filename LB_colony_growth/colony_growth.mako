@@ -1,4 +1,4 @@
-<%namespace file='util.mako' import='*' />
+<%namespace file='util.mako' import='*' name='util' />
 
 ${enable_double_support()}
 
