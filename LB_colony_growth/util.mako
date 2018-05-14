@@ -216,29 +216,10 @@ const int jump_index = spatial_index + ${jump_id}*nx*ny*nz;
 
 <%def name='define_all_c(jump_id="jump_id", identifier="const int ")' buffered='True' filter='trim'>
 
-${identifier}cur_cx = c_vec[${get_spatial_index('0', jump_id, dimension, 'num_jumpers')}];
-${identifier}cur_cy = c_vec[${get_spatial_index('1', jump_id, dimension, 'num_jumpers')}];
+${identifier}cur_cx = c_vec[${get_spatial_index('0', str(jump_id), str(dimension), 'num_jumpers')}];
+${identifier}cur_cy = c_vec[${get_spatial_index('1', str(jump_id), str(dimension), 'num_jumpers')}];
 %if dimension == 3:
-${identifier} cur_cz = c_vec[get_spatial_index_2(2, jump_id, ${dimension}, num_jumpers)];
+${identifier}cur_cz = c_vec[${get_spatial_index('2',str(jump_id), str(dimension), 'num_jumpers')}];
 %endif
 
 </%def>
-
-
-### Helpful filters ###
-<%!
-
-space4 = '    '
-
-def wrap1(t):
-    return t.replace('\n', '\n' + space4)
-
-def wrap2(t):
-    return t.replace('\n', '\n' + space4 + space4)
-
-def wrap3(t):
-    return t.replace('\n', '\n' + space4 + space4 + space4)
-
-def wrap4(t):
-    return t.replace('\n', '\n' + space4 + space4 + space4 + space4)
-%>

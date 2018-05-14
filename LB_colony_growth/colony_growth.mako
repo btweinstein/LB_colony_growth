@@ -1,3 +1,7 @@
+<%!
+    from LB_colony_growth.filters import wrap1, wrap2, wrap3, wrap4
+%>
+
 <%namespace file='util.mako' import='*' name='util' />
 
 ${enable_double_support()}
@@ -36,12 +40,12 @@ __constant int cz_nearest[6] = {0,  0, 0, 0, 1,-1};
 <%def name='define_streamed_index_local()' buffered='True' filter='trim'>
 
 % if dimension == 2:
-int streamed_index_local = get_spatial_index_2(buf_x + cur_cx, buf_y + cur_cy, buf_nx, buf_ny);
+int streamed_index_local = ${get_spatial_index('(buf_x + cur_cx)', '(buf_y + cur_cy)', 'buf_nx', 'buf_ny')};
 % elif dimension == 3:
-int streamed_index_local = get_spatial_index_3(
-    buf_x + cur_cx, buf_y + cur_cy, buf_z + cur_cz,
-    buf_nx, buf_ny, buf_nz
-);
+int streamed_index_local = ${get_spatial_index(
+    '(buf_x + cur_cx)', '(buf_y + cur_cy)', '(buf_z + cur_cz)',
+    'buf_nx', 'buf_ny', 'buf_nz'
+)};
 % endif
 
 </%def>
@@ -49,12 +53,12 @@ int streamed_index_local = get_spatial_index_3(
 <%def name='define_streamed_index_global(identifier="int")' buffered='True' filter='trim'>
 
 % if dimension == 2:
-${identifier} streamed_index_global = get_spatial_index_2(x + cur_cx, y + cur_cy, nx, ny);
+${identifier} streamed_index_global = ${get_spatial_index('(x + cur_cx)', '(y + cur_cy)', 'nx', 'ny')};
 % elif dimension == 3:
-${identifier} streamed_index_global = get_spatial_index_3(
-    x + cur_cx, y + cur_cy, z + cur_cz,
-    nx, ny, nz
-);
+${identifier} streamed_index_global = ${get_spatial_index(
+    '(x + cur_cx)', '(y + cur_cy)', '(z + cur_cz)',
+    'nx', 'ny', 'nz'
+)};
 % endif
 
 </%def>
@@ -207,22 +211,22 @@ ${num_type} new_f = f_after_collision;
 if (streamed_bc == FLUID_NODE){
     // Propagate the collided particle distribution as appropriate
     % if dimension == 2:
-    streamed_index_global = get_spatial_index_3(
-        x + cur_cx, y + cur_cy, jump_id,
-        nx, ny, num_jumpers
-    );
+    streamed_index_global = ${get_spatial_index(
+        '(x + cur_cx)', '(y + cur_cy)', 'jump_id',
+        'nx', 'ny', 'num_jumpers'
+    )};
     % elif dimension == 3:
-    streamed_index_global = get_spatial_index_4(
-        x + cur_cx, y + cur_cy, z+cur_cz, reflect_id,
-        nx, ny, nz, num_jumpers);
+    streamed_index_global = ${get_spatial_index(
+        '(x + cur_cx)', '(y + cur_cy)', '(z+cur_cz)', 'reflect_id',
+        'nx', 'ny', 'nz', 'num_jumpers')};
     % endif
 }
 else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bounceback.
-    int reflect_id = reflect_list[jump_id];
+    const int reflect_id = reflect_list[jump_id];
     % if dimension == 2:
-    int reflect_index = get_spatial_index_3(x, y, reflect_id, nx, ny, num_jumpers);
+    const int reflect_index = spatial_index + nx*ny*reflect_id;
     % elif dimension == 3:
-    int reflect_index = get_spatial_index_4(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
+    const int reflect_index = spatial_index + nx*ny*nz*reflect_id;
     % endif
 
     streamed_index_global = reflect_index;
@@ -243,9 +247,9 @@ else if (streamed_bc < 0){ // You are at a population node
     ${num_type} cur_w = w[jump_id];
     int reflect_id = reflect_list[jump_id];
     % if dimension == 2:
-    int reflect_index = get_spatial_index_3(x, y, reflect_id, nx, ny, num_jumpers);
+    int reflect_index = spatial_index + nx*ny*reflect_id;
     % elif dimension == 3:
-    int reflect_index = get_spatial_index_4(x, y, z, reflect_id, nx, ny, nz, num_jumpers);
+    int reflect_index = spatial_index + nx*ny*nz*reflect_id;
     % endif
 
     streamed_index_global = reflect_index;
@@ -496,15 +500,15 @@ if (space_to_reproduce){
     // Same with the current jump directions
 
     % if dimension == 2:
-    const int streamed_global_bc_index = get_spatial_index_2(
-        x + cur_cx + halo, y + cur_cy + halo,
-        nx_bc, ny_bc
-    );
+    const int streamed_global_bc_index = ${get_spatial_index(
+        '(x + cur_cx + halo)', '(y + cur_cy + halo)',
+        'nx_bc', 'ny_bc'
+    )};
     % elif dimension == 3:
-    const int streamed_global_bc_index = get_spatial_index_3(
-        x + cur_cx + halo, y + cur_cy + halo, z + cur_cz + halo,
-        nx_bc, ny_bc, nz_bc
-    );
+    const int streamed_global_bc_index = ${get_spatial_index(
+        '(x + cur_cx + halo)', '(y + cur_cy + halo)', '(z + cur_cz + halo)',
+        'nx_bc', 'ny_bc', 'nz_bc'
+    )};
     % endif
 
     //TODO: This can probably be sped up by doing comparisons with local, *then* going to global...
