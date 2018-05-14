@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 
 import mako as m
 import mako.template as mte
+import mako.exceptions
 import mako.runtime as mrt
 import mako.lookup as mlo
 import StringIO as sio
@@ -492,7 +493,12 @@ class DLA_Colony(object):
 
         buf = sio.StringIO()
         mako_context = mrt.Context(buf, **self.ctx_info)
-        template.render_context(mako_context)
+        try:
+            template.render_context(mako_context)
+        except:
+            with open('mako_exception.html', 'w') as fi:
+                fi.write(mako.exceptions.html_error_template().render())
+            assert False, 'Mako rendering failed...quitting...'
 
         with open('temp_kernels_DLA_colony.cl', 'w') as fi:
             fi.write(buf.getvalue())
