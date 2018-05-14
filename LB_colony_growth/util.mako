@@ -19,17 +19,16 @@
 </%def>
 
 <%def name='get_spatial_index(*args)', filter='trim'>
-
 <%
-num_pairs = len(args)/2
-output = ''
-for i in range(num_pairs):
-    output += args[i]
-    for j in range(0, i):
-        output += '*' + args[num_pairs + j]
-    if i < num_pairs - 1:
-        output +='+'
-context.write(output)
+    num_pairs = len(args)/2
+    output = ''
+    for i in range(num_pairs):
+        output += args[i]
+        for j in range(0, i):
+            output += '*' + args[num_pairs + j]
+        if i < num_pairs - 1:
+            output +='+'
+    context.write(output)
 %>
 </%def>
 
@@ -221,5 +220,31 @@ ${identifier}cur_cy = c_vec[${get_spatial_index('1', str(jump_id), str(dimension
 %if dimension == 3:
 ${identifier}cur_cz = c_vec[${get_spatial_index('2',str(jump_id), str(dimension), 'num_jumpers')}];
 %endif
+
+</%def>
+
+<%def name='define_streamed_index_local()' buffered='True' filter='trim'>
+
+% if dimension == 2:
+int streamed_index_local = ${get_spatial_index('(buf_x + cur_cx)', '(buf_y + cur_cy)', 'buf_nx', 'buf_ny')};
+% elif dimension == 3:
+int streamed_index_local = ${get_spatial_index(
+    '(buf_x + cur_cx)', '(buf_y + cur_cy)', '(buf_z + cur_cz)',
+    'buf_nx', 'buf_ny', 'buf_nz'
+)};
+% endif
+
+</%def>
+
+<%def name='define_streamed_index_global(identifier="int")' buffered='True' filter='trim'>
+
+% if dimension == 2:
+${identifier} streamed_index_global = ${get_spatial_index('(x + cur_cx)', '(y + cur_cy)', 'nx', 'ny')};
+% elif dimension == 3:
+${identifier} streamed_index_global = ${get_spatial_index(
+    '(x + cur_cx)', '(y + cur_cy)', '(z + cur_cz)',
+    'nx', 'ny', 'nz'
+)};
+% endif
 
 </%def>

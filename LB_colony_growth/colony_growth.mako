@@ -3,6 +3,7 @@
 %>
 
 <%namespace file='util.mako' import='*' name='util' />
+<%namespace file='kernel.mako' import='*' name='kernel' />
 
 ${enable_double_support()}
 
@@ -34,46 +35,7 @@ __constant int cz_nearest[6] = {0,  0, 0, 0, 1,-1};
 //The code is always ok, AS LONG as the halo is one! Regardless of the stencil.
 // If any more, everything breaks.
 
-######### Utility functions #################
-
-
-<%def name='define_streamed_index_local()' buffered='True' filter='trim'>
-
-% if dimension == 2:
-int streamed_index_local = ${get_spatial_index('(buf_x + cur_cx)', '(buf_y + cur_cy)', 'buf_nx', 'buf_ny')};
-% elif dimension == 3:
-int streamed_index_local = ${get_spatial_index(
-    '(buf_x + cur_cx)', '(buf_y + cur_cy)', '(buf_z + cur_cz)',
-    'buf_nx', 'buf_ny', 'buf_nz'
-)};
-% endif
-
-</%def>
-
-<%def name='define_streamed_index_global(identifier="int")' buffered='True' filter='trim'>
-
-% if dimension == 2:
-${identifier} streamed_index_global = ${get_spatial_index('(x + cur_cx)', '(y + cur_cy)', 'nx', 'ny')};
-% elif dimension == 3:
-${identifier} streamed_index_global = ${get_spatial_index(
-    '(x + cur_cx)', '(y + cur_cy)', '(z + cur_cz)',
-    'nx', 'ny', 'nz'
-)};
-% endif
-
-</%def>
-
 ######### Collide & Propagate kernel ########
-
-<%
-def print_kernel_args(cur_kernel_list):
-    num_args = len(cur_kernel_list)
-    for i in range(num_args):
-        context.write('     ')
-        context.write(cur_kernel_list[i][1])
-        if i < num_args - 1:
-            context.write(',\n')
-%>
 
 <%
     cur_kernel = 'collide_and_propagate'
@@ -118,7 +80,7 @@ def print_kernel_args(cur_kernel_list):
 
 __kernel void
 collide_and_propagate(
-<% print_kernel_args(cur_kernel_list) %>
+${print_kernel_args(cur_kernel_list)}
 )
 {
     // Get info about where thread is located in global memory
@@ -288,7 +250,7 @@ f_streamed_global[streamed_index_global] = new_f;
 
 __kernel void
 update_after_streaming(
-<% print_kernel_args(cur_kernel_list) %>
+${print_kernel_args(cur_kernel_list)}
 )
 {
     // Get info about where thread is located in global memory
@@ -350,9 +312,7 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
 
 __kernel void
 init_feq(
-<%
-    print_kernel_args(cur_kernel_list)
-%>
+${print_kernel_args(cur_kernel_list)}
 )
 {
     // Get info about where thread is located in global memory
@@ -407,9 +367,7 @@ init_feq(
 
 __kernel void
 reproduce(
-<%
-    print_kernel_args(cur_kernel_list)
-%>
+${print_kernel_args(cur_kernel_list)}
 )
 {
     // Get info about where thread is located in global memory
@@ -543,7 +501,7 @@ if (space_to_reproduce){
 
 __kernel void
 copy_streamed_onto_f(
-<% print_kernel_args(cur_kernel_list) %>
+${print_kernel_args(cur_kernel_list)}
 )
 {
     ${define_thread_location() | wrap1}
@@ -574,7 +532,7 @@ copy_streamed_onto_f(
 
 __kernel void
 copy_streamed_onto_bc(
-<% print_kernel_args(cur_kernel_list) %>
+${print_kernel_args(cur_kernel_list)}
 )
 {
     ${define_thread_location() | wrap1}
