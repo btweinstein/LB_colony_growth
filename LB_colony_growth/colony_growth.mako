@@ -30,27 +30,6 @@ __constant int cz_nearest[6] = {0,  0, 0, 0, 1,-1};
 
 ${define_node_types()}
 
-inline int get_spatial_index_2(
-    const int x, const int y,
-    const int x_size, const int y_size)
-{
-    return y*x_size + x;
-}
-
-inline int get_spatial_index_3(
-    const int x, const int y, const int z,
-    const int x_size, const int y_size, const int z_size)
-{
-    return z*y_size*x_size + y*x_size + x;
-}
-
-inline int get_spatial_index_4(
-    const int x, const int y, const int z, const int jump_id,
-    const int x_size, const int y_size, const int z_size, const int num_jumpers)
-{
-    return jump_id * z_size*y_size*x_size + z*y_size*x_size + y*x_size + x;
-}
-
 ### Helpful filters ###
 <%!
 
@@ -110,14 +89,14 @@ const int buf_z = lz + halo;
 % if dimension == 2:
 const int idx_1d = ${get_spatial_index('lx', 'ly', 'get_local_size(0)', 'get_local_size(1)')};
 % elif dimension == 3:
-const int idx_2d = get_spatial_index_3(lx, ly, lz, get_local_size(0), get_local_size(1), get_local_size(2));
+const int idx_2d = ${get_spatial_index('lx', 'ly', 'lz', 'get_local_size(0)', 'get_local_size(1)', 'get_local_size(2)')};
 % endif
 
 // Spatial location of the thread within the buffer
 % if dimension == 2:
-const int local_index = get_spatial_index_2(buf_x, buf_y, buf_nx, buf_ny);
+const int local_index = ${get_spatial_index('buf_x', 'buf_y', 'buf_nx', 'buf_ny')};
 % elif dimension == 3:
-const int local_index = get_spatial_index_3(buf_x, buf_y, buf_z, buf_nx, buf_ny, buf_nz);
+const int local_index = ${get_spatial_index('buf_x', 'buf_y', 'buf_z', 'buf_nx', 'buf_ny', 'buf_nz')};
 % endif
 
 </%def>
@@ -134,7 +113,7 @@ if (idx_1d < buf_nx) {
         % if var_name is not None:
         // If in the domain...
         if((temp_x < nx) && (temp_x > 0) && (temp_y < ny) && (temp_y > 0)){
-            int temp_index = get_spatial_index_2(temp_x, temp_y, nx, ny);
+            int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'nx', 'ny')};
             value = ${var_name}[temp_index];
         }
         % endif
@@ -153,7 +132,7 @@ if (idx_2d < buf_ny * buf_nx) {
         ${num_type} value = ${default_value};
         % if var_name is not None:
         if((temp_x < nx) && (temp_x > 0) && (temp_y < ny) && (temp_y > 0) && (temp_z < nz) && (temp_z > 0)){
-            int temp_index = get_spatial_index_3(temp_x, temp_y, temp_z, nx, ny, nz);
+            int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'temp_z', 'nx', 'ny', 'nz')};
             value = ${var_name}[temp_index];
         }
         % endif
