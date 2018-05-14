@@ -18,15 +18,17 @@
 #define NOT_IN_DOMAIN 2
 </%def>
 
-<%!
-def get_spatial_index(*args):
-    num_pairs = len(args)/2
-    output = ''
-    for i in range(num_pairs):
-        output += args[i]
-        for j in range(0, i):
-            output += '*' + args[num_pairs + j]
-        if i < num_pairs - 1:
-            output +='+'
-    return output
+<%def name='get_spatial_index(*args)', filter='trim'>
+
+<%
+num_pairs = len(args)/2
+output = ''
+for i in range(num_pairs):
+    output += args[i]
+    for j in range(0, i):
+        output += '*' + args[num_pairs + j]
+    if i < num_pairs - 1:
+        output +='+'
+context.write(output)
 %>
+</%def>
