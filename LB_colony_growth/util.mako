@@ -142,7 +142,7 @@ if (idx_2d < buf_ny * buf_nx) {
         // Read in 2d-slices
         //TODO: NEED TO FIX THIS SO THAT IT WORKS THE SAME WAY AS 2D!
         int temp_x = buf_corner_x + idx_2d % buf_nx;
-        int temp_y = buf_corner_y + idx_2d/buf_ny;
+        int temp_y = buf_corner_y + idx_2d/buf_nx;
         int temp_z = buf_corner_z + row;
 
         // If in the bc_map...
