@@ -102,7 +102,7 @@ if (idx_2d < buf_ny * buf_nx) {
     for (int row = 0; row < buf_nz; row++) {
         // Read in 2d-slices
         int temp_x = buf_corner_x + idx_2d % buf_nx;
-        int temp_y = buf_corner_y + idx_2d/buf_ny;
+        int temp_y = buf_corner_y + idx_2d/buf_nx;
         int temp_z = buf_corner_z + row;
 
         ${num_type} value = ${default_value};
@@ -154,13 +154,7 @@ if (idx_2d < buf_ny * buf_nx) {
         {
             int temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', '(temp_z + halo)', 'nx_bc', 'ny_bc', 'nz_bc')};
             value = ${var_name}[temp_index];
-            //printf("yes %d %d %d \n", temp_x, temp_y, temp_z);
         }
-        /*
-        if(value == ${default_value}){
-            printf("no %d %d %d \n", temp_x, temp_y, temp_z);
-        }
-        */
 
         ${local_mem}[row*buf_ny*buf_nx + idx_2d] = value;
     }

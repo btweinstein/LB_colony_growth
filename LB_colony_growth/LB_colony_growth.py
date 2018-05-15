@@ -286,7 +286,7 @@ class DLA_Colony(object):
         if self.dimension == 2:
             populations = populations[halo:-halo, halo:-halo]
         elif self.dimension == 3:
-            populations = populations[halo:-halo, halo:-halo]
+            populations = populations[halo:-halo, halo:-halo, halo:-halo]
 
         # Let 0 be background. Other integers refer to populations
         populations*= -1

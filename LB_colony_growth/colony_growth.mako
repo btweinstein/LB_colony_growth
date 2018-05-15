@@ -202,7 +202,6 @@ else if (streamed_bc < 0){ // You are at a population node
 else if (streamed_bc == NOT_IN_DOMAIN){
     printf("There is something wrong with the BC-map! I'm streaming to a not-defined region...\n");
 }
-printf("%d %d %d %d %d %d %d \n", streamed_bc, x, y, z, cur_cx, cur_cy, cur_cz);
 
 //Need to write to the streamed buffer...otherwise out of sync problems will occur
 
