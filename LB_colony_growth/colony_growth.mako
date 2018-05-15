@@ -211,13 +211,13 @@ f_streamed_global[streamed_index_global] = new_f;
 //######### Update after streaming kernel #########
 ${set_current_kernel('update_after_streaming')}
 
-#Global variables
+## Global variables
 ${needs_bc_map()}
 ${needs_f()}
 ${needs_feq()}
 ${needs_rho()}
 
-# Velocity set info
+## Velocity set info
 ${needs_w()}
 ${needs_num_jumpers()}
 
@@ -275,7 +275,7 @@ ${set_current_kernel('init_feq')}
 ${needs_feq()}
 ${needs_rho()}
 
-# Velocity set info
+## Velocity set info
 ${needs_w()}
 ${needs_num_jumpers()}
 
@@ -306,19 +306,21 @@ ${needs_bc_map_streamed()}
 ${needs_absorbed_mass()}
 ${needs_rand()}
 
-# Pointer that determines whether everyone is done reproducing
-k = kernel_arguments['current_kernel_list']
-k.append(['can_reproduce_pointer', '__global int *can_reproduce_global'])
-
-# Input parameters
+## Pointer that determines whether everyone is done reproducing.
+## No need to make a mako func for this...it's a one-off thing.
+<%
+    k = kernel_arguments['current_kernel_list']
+    k.append(['can_reproduce_pointer', '__global int *can_reproduce_global'])
+%>
+## Input parameters
 ${needs_m_reproduce_list()}
 
-# Velocity set info
+## Velocity set info
 ${needs_w()}
 ${needs_num_jumpers()}
 ${needs_c_vec()}
 
-# Local memory info
+## Local memory info
 ${needs_local_mem_int('bc_map_local')}
 ${needs_local_buf_size()}
 
@@ -445,11 +447,11 @@ if (space_to_reproduce){
 //######### Copy kernels #########
 ${set_current_kernel('copy_streamed_onto_f')}
 
-# Needed global variables
+## Needed global variables
 ${needs_f()}
 ${needs_f_streamed()}
 
-# Velocity set info
+## Velocity set info
 ${needs_num_jumpers()}
 
 __kernel void
