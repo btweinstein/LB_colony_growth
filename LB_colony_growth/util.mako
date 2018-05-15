@@ -257,7 +257,7 @@ ${identifier} streamed_index_global = ${get_spatial_index(
 
 <%namespace file='kernel.mako' import='*' name='kernel' />
 
-<%def name='needs_copy_streamed_onto_f()' filter='trim'>
+<%def name='needs_copy_streamed_onto_f_kernel()' filter='trim'>
 
 ${set_current_kernel('copy_streamed_onto_f')}
 
@@ -286,7 +286,7 @@ ${print_kernel_args()}
 
 </%def>
 
-<%def name='needs_copy_streamed_onto_bc()' filter='trim'>
+<%def name='needs_copy_streamed_onto_bc_kernel()' filter='trim'>
 
 ${set_current_kernel('copy_streamed_onto_bc')}
 ${needs_bc_map()}

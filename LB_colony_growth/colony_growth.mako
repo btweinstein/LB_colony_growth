@@ -445,6 +445,6 @@ if (space_to_reproduce){
 </%def>
 
 //######### Copy kernels #########
-${needs_copy_streamed_onto_f()}
+${needs_copy_streamed_onto_f_kernel()}
 
-${needs_copy_streamed_onto_bc()}
+${needs_copy_streamed_onto_bc_kernel()}
