@@ -16,6 +16,8 @@ import mako.lookup as mlo
 import StringIO as sio
 import weakref
 
+from velocity_sets import *
+
 from pyevtk.hl import gridToVTK
 
 import inspect
@@ -30,8 +32,6 @@ file_dir = os.path.dirname(full_path)
 parent_dir = os.path.dirname(file_dir)
 
 # Required for allocating local memory
-num_size = ct.sizeof(ct.c_double)
-num_type = np.double
 int_type = np.int32
 
 # Constants for defining the node map...
@@ -58,161 +58,6 @@ def get_divisible_global(global_size, local_size):
             new_size.append(cur_global + cur_local - remainder)
     return tuple(new_size)
 
-class Velocity_Set(object):
-    def __init__(self, ctx_info, context, kernel_args):
-        self.ctx_info = ctx_info
-        self.context = context
-        self.kernel_args = kernel_args
-
-        self.name = None
-
-        # Variables that will be passed to kernels...
-
-        self.num_jumpers = None
-        self.w = None
-        self.c_vec = None
-        self.c_mag = None
-        self.cs = None
-
-        self.reflect_list = None
-        self.slip_list = None
-
-        self.halo = None
-
-        self.nx_bc = None
-        self.ny_bc = None
-        self.nz_bc = None
-
-        self.bc_size = None # Individual to each fluid...b/c each may have a different BC.
-
-        self.buf_nx = None
-        self.buf_ny = None
-        self.buf_nz = None
-
-    def set_kernel_args(self):
-
-        const_flags = cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR
-
-        self.kernel_args['num_jumpers'] = self.num_jumpers
-        self.kernel_args['w'] = cl.Buffer(self.context, const_flags, hostbuf=self.w)
-        self.kernel_args['c_vec'] = cl.Buffer(self.context, const_flags, hostbuf=self.c_vec)
-        self.kernel_args['c_mag'] = cl.Buffer(self.context, const_flags, hostbuf=self.c_mag)
-        self.kernel_args['cs'] = self.cs
-
-        self.kernel_args['reflect_list'] = cl.Buffer(self.context, const_flags, hostbuf=self.reflect_list)
-        self.kernel_args['slip_list'] = cl.Buffer(self.context, const_flags, hostbuf=self.slip_list)
-
-        self.kernel_args['halo'] = self.halo
-
-        self.kernel_args['nx_bc'] = self.nx_bc
-        self.kernel_args['ny_bc'] = self.ny_bc
-        self.kernel_args['nz_bc'] = self.nz_bc
-
-        self.kernel_args['buf_nx'] = self.buf_nx
-        self.kernel_args['buf_ny'] = self.buf_ny
-        self.kernel_args['buf_nz'] = self.buf_nz
-
-        # Add the ability to create local memory
-        self.kernel_args['local_mem_num'] = lambda: self.create_local_memory(self.ctx_info['num_type'])
-        self.kernel_args['local_mem_int'] = lambda: self.create_local_memory('int')
-
-    def create_local_memory(self, dtype):
-
-        print 'Creating local memory of', dtype, 'type...'
-
-        num_size = None
-
-        if dtype == 'double':
-            num_size = ct.sizeof(ct.c_double)
-        elif dtype == 'float':
-            num_size = ct.sizeof(ct.c_float)
-        elif dtype == 'int':
-            num_size = ct.sizeof(ct.c_int)
-
-        num_elements = self.buf_nx * self.buf_ny
-        if self.buf_nz is not None:
-            num_elements *= self.buf_nz
-
-        local = cl.LocalMemory(num_size * num_elements)
-
-        return local
-
-class D2Q9(Velocity_Set):
-
-    def __init__(self, ctx_info, context, kernel_args):
-
-        super(D2Q9, self).__init__(ctx_info, context, kernel_args)
-
-        self.name = 'D2Q9'
-
-        ##########################
-        ##### D2Q9 parameters ####
-        ##########################
-
-        self.w = np.array([4. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 36.,
-                      1. / 36., 1. / 36., 1. / 36.], order='F', dtype=num_type)  # weights for directions
-        self.cx = np.array([0, 1, 0, -1, 0, 1, -1, -1, 1], order='F', dtype=int_type)  # direction vector for the x direction
-        self.cy = np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=int_type)  # direction vector for the y direction
-
-        self.c_vec = np.array([self.cx, self.cy], order='F', dtype=int_type)
-        self.c_mag = np.sqrt(np.sum(self.c_vec**2, axis=0), order='F', dtype=num_type)
-
-        self.cs = num_type(1. / np.sqrt(3))  # Speed of sound on the lattice
-        self.num_jumpers = int_type(9)  # Number of jumpers for the D2Q9 lattice: 9
-
-        # Create arrays for bounceback and zero-shear/symmetry conditions
-        self.reflect_list = np.zeros(self.num_jumpers, order='F', dtype=int_type)
-        for i in range(self.reflect_list.shape[0]):
-            cur_cx = self.cx[i]
-            cur_cy = self.cy[i]
-
-            reflect_cx = -cur_cx
-            reflect_cy = -cur_cy
-
-            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
-            self.reflect_list[i] = np.where(opposite)[0][0]
-
-        # When you go out of bounds in the x direction...and need to reflect back keeping y momentum
-        slip_x_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
-        for i in range(slip_x_index.shape[0]):
-            cur_cx = self.cx[i]
-            cur_cy = self.cy[i]
-
-            reflect_cx = -cur_cx
-            reflect_cy = cur_cy
-
-            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
-            slip_x_index[i] = np.where(opposite)[0][0]
-
-        # When you go out of bounds in the y direction...and need to reflect back keeping x momentum
-        slip_y_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
-        for i in range(slip_y_index.shape[0]):
-            cur_cx = self.cx[i]
-            cur_cy = self.cy[i]
-
-            reflect_cx = cur_cx
-            reflect_cy = -cur_cy
-
-            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
-            slip_y_index[i] = np.where(opposite)[0][0]
-
-        self.slip_list = np.array([slip_x_index, slip_y_index], order='F', dtype=int_type)
-
-
-        # Define other important info
-        self.halo = int_type(1)
-        self.buf_nx = int_type(self.ctx_info['local_size'][0] + 2*self.halo)
-        self.buf_ny = int_type(self.ctx_info['local_size'][1] + 2*self.halo)
-        self.buf_nz = None
-
-        self.nx_bc = int_type(self.ctx_info['nx'] + 2*self.halo)
-        self.ny_bc = int_type(self.ctx_info['ny'] + 2*self.halo)
-        self.nz_bc = None
-
-        self.bc_size = (self.nx_bc, self.ny_bc)
-
-        # Now that everything is defined...set the corresponding kernel definitions
-        self.set_kernel_args()
 
 class Autogen_Kernel(object):
     def __init__(self, short_name, opencl_kernel, sim, kernel_global_size=None, kernel_local_size=None):
@@ -275,8 +120,18 @@ class DLA_Colony(object):
                  context=None, use_interop=False, f_rand_amp=1e-6):
 
         self.ctx_info = ctx_info
-        self.dimension = self.ctx_info['dimension']
         self.kernel_args = {}
+        self.dimension = self.ctx_info['dimension']
+
+
+        ### Figure out if using float or double precision ###
+        if self.ctx_info['num_type'] == 'double':
+            self.num_size = ct.sizeof(ct.c_double)
+            self.num_type = np.double
+        elif self.ctx_info['num_type'] == 'float':
+            self.num_size = ct.sizeof(ct.c_float)
+            self.num_type = np.float32
+        num_type = self.num_type
 
         # Create global & local sizes appropriately
         self.local_size = self.ctx_info['local_size']
@@ -312,7 +167,7 @@ class DLA_Colony(object):
         # variables.
         self.velocity_set = None
         if velocity_set == 'D2Q9':
-            self.velocity_set = D2Q9(self.ctx_info, self.context, self.kernel_args)
+            self.velocity_set = D2Q9(self)
 
         # Determine the relxation time scale
         self.tau = num_type(.5 + self.D / (self.velocity_set.cs ** 2))
@@ -546,18 +401,3 @@ class DLA_Colony(object):
                       'population': np.dstack([population]),
                       'rho': np.dstack([rho])
                   })
-
-    def check_fields(self):
-        # Start with rho
-        for i in range(self.num_populations):
-            print 'Field:', i
-            print 'rho_sum', cl.array.sum(self.rho[:, :, i])
-            print 'u, v bary sum', cl.array.sum(self.u_bary), cl.array.sum(self.u_bary)
-            print 'f_sum', np.sum(self.f.get()[:, :, i, :])
-            print 'f_eq_sum', np.sum(self.feq.get()[:, :, i, :])
-
-        print 'Total rho_sum', cl.array.sum(self.rho)
-        print 'Total f_sum', np.sum(self.f.get())
-        print 'Total feq_sum', np.sum(self.feq.get())
-
-        print
