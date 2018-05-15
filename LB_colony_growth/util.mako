@@ -1,3 +1,7 @@
+<%!
+    from LB_colony_growth.filters import wrap1, wrap2, wrap3, wrap4
+%>
+
 ### Various mako utility code
 
 <%def name='enable_double_support()' filter='trim'>
@@ -249,4 +253,55 @@ ${identifier} streamed_index_global = ${get_spatial_index(
 
 </%def>
 
-##### Useful copy kernels
+##### Useful copy kernels ######
+
+<%namespace file='kernel.mako' import='*' name='kernel' />
+
+<%def name='needs_copy_streamed_onto_f()' filter='trim'>
+
+${set_current_kernel('copy_streamed_onto_f')}
+
+## Needed global variables
+${needs_f()}
+${needs_f_streamed()}
+
+## Velocity set info
+${needs_num_jumpers()}
+
+__kernel void
+copy_streamed_onto_f(
+${print_kernel_args()}
+)
+{
+    ${define_thread_location() | wrap1}
+
+    ${if_thread_in_domain() | wrap1}{
+        for(int jump_id = 0; jump_id < num_jumpers; jump_id++){
+            ${define_jump_index()}
+
+            f_global[jump_index] = f_streamed_global[jump_index];
+        }
+    }
+}
+
+</%def>
+
+<%def name='needs_copy_streamed_onto_bc()' filter='trim'>
+
+${set_current_kernel('copy_streamed_onto_bc')}
+${needs_bc_map()}
+${needs_bc_map_streamed()}
+
+__kernel void
+copy_streamed_onto_bc(
+${print_kernel_args()}
+)
+{
+    ${define_thread_location() | wrap1}
+
+    ${if_thread_in_bc_domain() | wrap1}{
+        bc_map_global[spatial_index] = bc_map_streamed_global[spatial_index];
+    }
+}
+
+</%def>
