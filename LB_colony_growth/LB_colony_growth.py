@@ -16,6 +16,8 @@ import mako.lookup as mlo
 import StringIO as sio
 import weakref
 
+from pyevtk.hl import gridToVTK
+
 import inspect
 
 # Required to draw obstacles
@@ -391,6 +393,9 @@ class DLA_Colony(object):
         self.copy_streamed_onto_bc = Autogen_Kernel('copy_streamed_onto_bc', ker.copy_streamed_onto_bc, self,
                                                     kernel_global_size=self.global_size_bc)
 
+        # Helpful book=keeping variables
+        self.elapsed_time = 0
+
     def run(self, num_iterations, reproduction_cutoff = 1000):
         for i in range(num_iterations):
             self.collide_and_propagate.run().wait()
@@ -415,6 +420,7 @@ class DLA_Colony(object):
                 num_times += 1
                 if num_times >= reproduction_cutoff:
                     assert False, "I've run the reproduction step "+str(reproduction_cutoff)+" times. Something is probably wrong. Quitting..."
+            self.elapsed_time += 1
 
     def get_pop_field(self):
         # Chop off the edge of the bc_map
@@ -519,7 +525,27 @@ class DLA_Colony(object):
         self.f[...] = f_host
         self.f_streamed = self.f.copy()
 
+    def output_fields(self, name):
 
+        dimension = self.ctx_info['dimension']
+        nx = self.ctx_info['nx']
+        ny = self.ctx_info['ny']
+        nz = self.ctx_info['nz']
+
+        x = np.arange(0, nx + 1, dtype=np.int32)
+        y = np.arange(0, ny + 1, dtype=np.int32)
+        z = np.array([0], dtype=np.int32)
+        if dimension == 3:
+            z = np.arange(0, nz + 1, dtype=np.int32)
+
+        population = self.get_pop_field()
+        rho = self.rho.get()
+
+        gridToVTK(name + '_' + str(self.elapsed_time), x, y, z,
+                  cellData={
+                      'population': np.dstack([population]),
+                      'rho': np.dstack([rho])
+                  })
 
     def check_fields(self):
         # Start with rho
