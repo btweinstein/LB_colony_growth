@@ -32,6 +32,12 @@
 %>
 </%def>
 
+<%def name='needs_bc_map_streamed(modifier="")' filter='trim'>
+<%
+    k.append(['bc_map', '__global '+modifier+' int *bc_map_streamed_global'])
+%>
+</%def>
+
 
 <%def name='needs_f(modifier="")' filter='trim'>
 <%
@@ -107,6 +113,12 @@
 %>
 </%def>
 
+<%def name='needs_m_reproduce_list()' filter='trim'>
+<%
+    k = kernel_arguments['current_kernel_list']
+    k.append(['m_reproduce_list', '__constant '+num_type+' *m_reproduce'])
+%>
+</%def>
 
 <%def name='needs_D()' filter='trim'>
 <%
@@ -127,6 +139,7 @@
 <%def name='needs_omega()' filter='trim'>
 <%
     k = kernel_arguments['current_kernel_list']
+
     k.append(['omega', 'const '+num_type+' omega'])
 %>
 </%def>
@@ -159,5 +172,13 @@
 <%
     k = kernel_arguments['current_kernel_list']
     k.append(['reflect_list', '__constant int *reflect_list'])
+%>
+</%def>
+
+
+<%def name='needs_rand(modifier="")' filter='trim'>
+<%
+    k = kernel_arguments['current_kernel_list']
+    k.append(['rand', '__global '+modifier+' '+num_type+' *rand_global'])
 %>
 </%def>

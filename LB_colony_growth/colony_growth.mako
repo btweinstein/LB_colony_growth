@@ -209,31 +209,21 @@ f_streamed_global[streamed_index_global] = new_f;
 </%def>
 
 //######### Update after streaming kernel #########
-<%
-    cur_kernel = 'update_after_streaming'
-    kernel_arguments[cur_kernel] = []
-    cur_kernel_list = kernel_arguments[cur_kernel]
-%>
+${set_current_kernel('update_after_streaming')}
 
-${needs_bc_map(cur_kernel_list)}
-    cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map_global'])
-    cur_kernel_list.append(['nx_bc', 'const int nx_bc'])
-    cur_kernel_list.append(['ny_bc', 'const int ny_bc'])
-    if dimension == 3:
-        cur_kernel_list.append(['nz_bc', 'const int nz_bc'])
+#Global variables
+${needs_bc_map()}
+${needs_f()}
+${needs_feq()}
+${needs_rho()}
 
-    cur_kernel_list.append(['f', '__global '+num_type+' *f_global'])
-    cur_kernel_list.append(['feq', '__global '+num_type+' *feq_global'])
-    cur_kernel_list.append(['rho', '__global '+num_type+' *rho_global'])
-
-    # Velocity set info
-    cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
-    cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
-
+# Velocity set info
+${needs_w()}
+${needs_num_jumpers()}
 
 __kernel void
 update_after_streaming(
-${print_kernel_args(cur_kernel_list)}
+${print_kernel_args()}
 )
 {
     // Get info about where thread is located in global memory
@@ -280,22 +270,18 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
 
 //######### Update feq for initialization #####
 
-<%
-    cur_kernel = 'init_feq'
-    kernel_arguments[cur_kernel] = []
-    cur_kernel_list = kernel_arguments[cur_kernel]
+${set_current_kernel('init_feq')}
 
-    cur_kernel_list.append(['feq', '__global __read_only '+num_type+' *feq_global'])
-    cur_kernel_list.append(['rho', '__global '+num_type+' *rho_global'])
+${needs_feq()}
+${needs_rho()}
 
-    # Velocity set info
-    cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
-    cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
-%>
+# Velocity set info
+${needs_w()}
+${needs_num_jumpers()}
 
 __kernel void
 init_feq(
-${print_kernel_args(cur_kernel_list)}
+${print_kernel_args()}
 )
 {
     // Get info about where thread is located in global memory
@@ -313,44 +299,32 @@ ${print_kernel_args(cur_kernel_list)}
 
 
 //######### Reproduce cells kernel #########
-<%
-    cur_kernel = 'reproduce'
-    kernel_arguments[cur_kernel] = []
-    cur_kernel_list = kernel_arguments[cur_kernel]
+${set_current_kernel('reproduce')}
 
-    cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map_global'])
-    cur_kernel_list.append(['bc_map_streamed', '__global int *bc_map_streamed_global'])
-    cur_kernel_list.append(['nx_bc', 'const int nx_bc'])
-    cur_kernel_list.append(['ny_bc', 'const int ny_bc'])
-    if dimension == 3:
-        cur_kernel_list.append(['nz_bc', 'const int nz_bc'])
+${needs_bc_map()}
+${needs_bc_map_streamed()}
+${needs_absorbed_mass()}
+${needs_rand()}
 
-    cur_kernel_list.append(['absorbed_mass', '__global '+num_type+' *absorbed_mass_global'])
-    cur_kernel_list.append(['rand', '__global '+num_type+' *rand_global'])
+# Pointer that determines whether everyone is done reproducing
+k = kernel_arguments['current_kernel_list']
+k.append(['can_reproduce_pointer', '__global int *can_reproduce_global'])
 
-    # Pointer that determines whether everyone is done reproducing
-    cur_kernel_list.append(['can_reproduce_pointer', '__global int *can_reproduce_global'])
+# Input parameters
+${needs_m_reproduce_list()}
 
-    # Input parameters
-    cur_kernel_list.append(['m_reproduce_list', '__constant '+num_type+' *m_reproduce'])
+# Velocity set info
+${needs_w()}
+${needs_num_jumpers()}
+${needs_c_vec()}
 
-    # Velocity set info
-    cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
-    cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
-    cur_kernel_list.append(['c_vec', '__constant int *c_vec'])
-
-    # Local memory info
-    cur_kernel_list.append(['local_mem_int', '__local int *bc_map_local'])
-
-    cur_kernel_list.append(['buf_nx', 'const int buf_nx'])
-    cur_kernel_list.append(['buf_ny', 'const int buf_ny'])
-    if dimension == 3:
-        cur_kernel_list.append(['buf_nz', 'const int buf_nz'])
-%>
+# Local memory info
+${needs_local_mem_int('bc_map_local')}
+${needs_local_buf_size()}
 
 __kernel void
 reproduce(
-${print_kernel_args(cur_kernel_list)}
+${print_kernel_args()}
 )
 {
     // Get info about where thread is located in global memory
