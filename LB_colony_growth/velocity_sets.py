@@ -166,3 +166,124 @@ class D2Q9(Velocity_Set):
 
         # Now that everything is defined...set the corresponding kernel definitions
         self.set_kernel_args()
+
+class D3Q27(Velocity_Set):
+
+    def __init__(self, sim):
+
+        super(D3Q27, self).__init__(sim)
+
+        self.name = 'D3Q27'
+
+        num_type = self.sim.num_type
+        int_type = np.int32
+
+        # Pulled from LB principles and practice
+        self.w = np.array(
+            [
+                8./27.,
+                2./27., 2./27., 2./27., 2./27., 2./27., 2./27.,
+                1./54., 1./54., 1./54., 1./54., 1./54., 1./54.,
+                1./54., 1./54., 1./54., 1./54., 1./54., 1./54.,
+                1./216., 1./216., 1./216., 1./216., 1./216., 1./216.,
+                1./216., 1./216.
+            ], order='F', dtype=num_type)  # weights for directions
+        self.cx = np.array(
+            [
+                0, 1, -1,
+                0, 0, 0, 0,
+                1, -1, 1, -1, 0, 0,
+                1, -1, 1, -1, 0, 0,
+                1, -1, 1, -1, 1, -1, -1, 1, 1, -1
+            ], order='F', dtype=int_type)  # direction vector for the x direction
+
+        self.cy = np.array(
+            [
+                0, 0, 0,
+                1, -1, 0, 0,
+                1, -1, 0, 0,
+                1, -1, -1, 1, 0, 0,
+                1, -1, 1, -1, 1, -1, -1, 1, 1, -1
+             ], order='F', dtype=int_type)  # direction vector for the y direction
+
+        self.cz = np.array(
+            [
+                0, 0, 0, 0, 0,
+                1, -1, 0, 0,
+                1, -1, 1, -1, 0, 0,
+                -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1, -1
+            ], order='F', dtype=int_type)  # direction vector for the z direction
+
+        self.c_vec = np.array([self.cx, self.cy, self.cz], order='F', dtype=int_type)
+        self.c_mag = np.sqrt(np.sum(self.c_vec**2, axis=0), order='F', dtype=num_type)
+
+        self.cs = num_type(1. / np.sqrt(3))  # Speed of sound on the lattice
+        self.num_jumpers = int_type(27)  # Number of jumpers for the D2Q9 lattice: 9
+
+        # Create arrays for bounceback and zero-shear/symmetry conditions
+        self.reflect_list = np.zeros(self.num_jumpers, order='F', dtype=int_type)
+        for i in range(self.reflect_list.shape[0]):
+            cur_cx = self.cx[i]
+            cur_cy = self.cy[i]
+
+            reflect_cx = -cur_cx
+            reflect_cy = -cur_cy
+
+            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
+            self.reflect_list[i] = np.where(opposite)[0][0]
+
+        # When you go out of bounds in the x direction...and need to reflect back keeping y momentum & z
+        slip_x_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
+        for i in range(slip_x_index.shape[0]):
+            cur_cx = self.cx[i]
+            cur_cy = self.cy[i]
+            cur_cz = self.cz[i]
+
+            reflect_cx = -cur_cx
+            reflect_cy = cur_cy
+            reflect_cz = cur_cz
+
+            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
+            slip_x_index[i] = np.where(opposite)[0][0]
+
+        # When you go out of bounds in the y direction...and need to reflect back keeping x momentum
+        slip_y_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
+        for i in range(slip_y_index.shape[0]):
+            cur_cx = self.cx[i]
+            cur_cy = self.cy[i]
+
+            reflect_cx = cur_cx
+            reflect_cy = -cur_cy
+
+            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
+            slip_y_index[i] = np.where(opposite)[0][0]
+
+        # When you go out of bounds in the z direction...and need to reflect back keeping z momentum
+        slip_y_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
+        for i in range(slip_y_index.shape[0]):
+            cur_cx = self.cx[i]
+            cur_cy = self.cy[i]
+
+            reflect_cx = cur_cx
+            reflect_cy = -cur_cy
+
+            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
+            slip_y_index[i] = np.where(opposite)[0][0]
+
+        self.slip_list = np.array([slip_x_index, slip_y_index, slip_z_index], order='F', dtype=int_type)
+
+
+        # Define other important info
+        self.halo = int_type(1)
+        self.buf_nx = int_type(self.sim.ctx_info['local_size'][0] + 2*self.halo)
+        self.buf_ny = int_type(self.sim.ctx_info['local_size'][1] + 2*self.halo)
+        self.buf_nz = None
+
+        self.nx_bc = int_type(self.sim.ctx_info['nx'] + 2*self.halo)
+        self.ny_bc = int_type(self.sim.ctx_info['ny'] + 2*self.halo)
+        self.nz_bc = None
+
+        self.bc_size = (self.nx_bc, self.ny_bc)
+
+        # Now that everything is defined...set the corresponding kernel definitions
+        self.set_kernel_args()
