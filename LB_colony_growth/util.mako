@@ -128,7 +128,7 @@ if (idx_1d < buf_nx) {
 
         // If in the bc_map...
         int value = ${default_value};
-        if((temp_x < nx + halo) && (temp_x >= -halo) && (temp_y < ny + halo) && temp_y >= -halo){
+        if((temp_x < nx + halo) && (temp_x >= -halo) && (temp_y < ny + halo) && (temp_y >= -halo)){
             int temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')};
             value = ${var_name}[temp_index];
         }
@@ -141,14 +141,18 @@ if (idx_2d < buf_ny * buf_nx) {
     for (int row = 0; row < buf_nz; row++) {
         // Read in 2d-slices
         //TODO: NEED TO FIX THIS SO THAT IT WORKS THE SAME WAY AS 2D!
-        int temp_x = buf_corner_x + idx_2d % buf_nx + halo;
-        int temp_y = buf_corner_y + idx_2d/buf_ny + halo;
-        int temp_z = buf_corner_z + row + halo;
+        int temp_x = buf_corner_x + idx_2d % buf_nx;
+        int temp_y = buf_corner_y + idx_2d/buf_ny;
+        int temp_z = buf_corner_z + row;
 
         // If in the bc_map...
         int value = ${default_value};
-        if((temp_x < nx_bc) && (temp_x > 0) && (temp_y < ny_bc) && (temp_y > 0) && (temp_z < nz_bc) && (temp_z > 0)){
-            int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'temp_z', 'nx_bc', 'ny_bc', 'nz_bc')};
+        if(
+            (temp_x < nx + halo) && (temp_x >= -halo) &&
+            (temp_y < ny + halo) && (temp_y >= -halo) &&
+            (temp_z < nz + halo) && (temp_z >= -halo))
+        {
+            int temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y+halo)', '(temp_z+halo)', 'nx_bc', 'ny_bc', 'nz_bc')};
             value = ${var_name}[temp_index];
         }
 
