@@ -16,10 +16,8 @@ ${enable_double_support()}
 
 ${define_node_types()}
 
-// Everything works as long as halo is one...check for that
+// Everything works as long as halo is one...really should be velocity set dependent.
 # define halo 1
-
-
 
 %if dimension==2:
 #define NUM_NEAREST_NEIGHBORS 4
@@ -32,51 +30,34 @@ __constant int cy_nearest[6] = {0,  0, 1,-1, 0, 0};
 __constant int cz_nearest[6] = {0,  0, 0, 0, 1,-1};
 %endif
 
-//The code is always ok, AS LONG as the halo is one! Regardless of the stencil.
-// If any more, everything breaks.
-
 ######### Collide & Propagate kernel ########
 
-<%
-    cur_kernel = 'collide_and_propagate'
-    kernel_arguments[cur_kernel] = []
-    cur_kernel_list = kernel_arguments[cur_kernel]
+${set_current_kernel('collide_and_propagate')}
 
-    # Global variables
-    cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map_global'])
-    cur_kernel_list.append(['nx_bc', 'const int nx_bc'])
-    cur_kernel_list.append(['ny_bc', 'const int ny_bc'])
-    if dimension == 3:
-        cur_kernel_list.append(['nz_bc', 'const int nz_bc'])
+## Global variables
+${needs_bc_map()}
+${needs_f()}
+${needs_f_streamed()}
+${needs_feq()}
+${needs_rho()}
+${needs_absorbed_mass()}
 
-    cur_kernel_list.append(['f', '__global '+num_type+' *f_global'])
-    cur_kernel_list.append(['f_streamed', '__global '+num_type+' *f_streamed_global'])
-    cur_kernel_list.append(['feq', '__global __read_only '+num_type+' *feq_global'])
-    cur_kernel_list.append(['rho', '__global '+num_type+' *rho_global'])
-    cur_kernel_list.append(['absorbed_mass', '__global '+num_type+' *absorbed_mass_global'])
+## Local variables
+${needs_local_mem_num('rho_local')}
+${needs_local_mem_int('bc_map_local')}
+${needs_local_buf_size()}
 
-    # Variables that are read into local memory
-    cur_kernel_list.append(['local_mem_num', '__local '+num_type+' *rho_local'])
-    cur_kernel_list.append(['local_mem_int', '__local int *bc_map_local'])
+## Specific parameter choices
+${needs_k_list()}
+${needs_D()}
 
-    # Local memory info
-    cur_kernel_list.append(['buf_nx', 'const int buf_nx'])
-    cur_kernel_list.append(['buf_ny', 'const int buf_ny'])
-    if dimension == 3:
-        cur_kernel_list.append(['buf_nz', 'const int buf_nz'])
-
-    # Specific parameter choices
-    cur_kernel_list.append(['k_list', '__constant '+num_type+' *k'])
-    cur_kernel_list.append(['D', 'const '+num_type+' D'])
-
-    # Lattice velocity choices
-    cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
-    cur_kernel_list.append(['omega', 'const '+num_type+' omega'])
-    cur_kernel_list.append(['c_vec', '__constant int *c_vec'])
-    cur_kernel_list.append(['c_mag', '__constant '+num_type+' *c_mag'])
-    cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
-    cur_kernel_list.append(['reflect_list', '__constant int *reflect_list'])
-%>
+## Lattice velocity choices
+${needs_num_jumpers()}
+${needs_omega()}
+${needs_c_vec()}
+${needs_c_mag()}
+${needs_w()}
+${needs_reflect_list()}
 
 __kernel void
 collide_and_propagate(
@@ -232,7 +213,9 @@ f_streamed_global[streamed_index_global] = new_f;
     cur_kernel = 'update_after_streaming'
     kernel_arguments[cur_kernel] = []
     cur_kernel_list = kernel_arguments[cur_kernel]
+%>
 
+${needs_bc_map(cur_kernel_list)}
     cur_kernel_list.append(['bc_map', '__global __read_only int *bc_map_global'])
     cur_kernel_list.append(['nx_bc', 'const int nx_bc'])
     cur_kernel_list.append(['ny_bc', 'const int ny_bc'])
@@ -246,7 +229,7 @@ f_streamed_global[streamed_index_global] = new_f;
     # Velocity set info
     cur_kernel_list.append(['w', '__constant '+num_type+' *w'])
     cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
-%>
+
 
 __kernel void
 update_after_streaming(
