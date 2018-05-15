@@ -194,7 +194,7 @@ class D3Q27(Velocity_Set):
                 0, 0, 0, 0,
                 1, -1, 1, -1, 0, 0,
                 1, -1, 1, -1, 0, 0,
-                1, -1, 1, -1, 1, -1, -1, 1, 1, -1
+                1, -1, 1, -1, 1, -1, -1, 1
             ], order='F', dtype=int_type)  # direction vector for the x direction
 
         self.cy = np.array(
@@ -213,6 +213,11 @@ class D3Q27(Velocity_Set):
                 1, -1, 1, -1, 0, 0,
                 -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1, -1
             ], order='F', dtype=int_type)  # direction vector for the z direction
+
+        print self.w.shape
+        print self.cx.shape
+        print self.cy.shape
+        print self.cz.shape
 
         self.c_vec = np.array([self.cx, self.cy, self.cz], order='F', dtype=int_type)
         self.c_mag = np.sqrt(np.sum(self.c_vec**2, axis=0), order='F', dtype=num_type)

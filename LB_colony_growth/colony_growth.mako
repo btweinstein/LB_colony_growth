@@ -160,7 +160,7 @@ if (streamed_bc == FLUID_NODE){
     )};
     % elif dimension == 3:
     streamed_index_global = ${get_spatial_index(
-        '(x + cur_cx)', '(y + cur_cy)', '(z+cur_cz)', 'reflect_id',
+        '(x + cur_cx)', '(y + cur_cy)', '(z+cur_cz)', 'jump_id',
         'nx', 'ny', 'nz', 'num_jumpers')};
     % endif
 }
