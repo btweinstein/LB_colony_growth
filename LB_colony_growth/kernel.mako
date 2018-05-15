@@ -34,6 +34,7 @@
 
 <%def name='needs_bc_map_streamed(modifier="")' filter='trim'>
 <%
+    k = kernel_arguments['current_kernel_list']
     k.append(['bc_map', '__global '+modifier+' int *bc_map_streamed_global'])
 %>
 </%def>

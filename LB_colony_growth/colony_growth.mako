@@ -443,22 +443,18 @@ if (space_to_reproduce){
 </%def>
 
 //######### Copy kernels #########
-<%
-    cur_kernel = 'copy_streamed_onto_f'
-    kernel_arguments[cur_kernel] = []
-    cur_kernel_list = kernel_arguments[cur_kernel]
+${set_current_kernel('copy_streamed_onto_f')}
 
-    # Needed global variables
-    cur_kernel_list.append(['f_streamed', '__global '+num_type+' *f_streamed_global'])
-    cur_kernel_list.append(['f', '__global '+num_type+' *f_global'])
+# Needed global variables
+${needs_f()}
+${needs_f_streamed()}
 
-    # Velocity set info
-    cur_kernel_list.append(['num_jumpers', 'const int num_jumpers'])
-%>
+# Velocity set info
+${needs_num_jumpers()}
 
 __kernel void
 copy_streamed_onto_f(
-${print_kernel_args(cur_kernel_list)}
+${print_kernel_args()}
 )
 {
     ${define_thread_location() | wrap1}
@@ -472,24 +468,14 @@ ${print_kernel_args(cur_kernel_list)}
     }
 }
 
-<%
-    cur_kernel = 'copy_streamed_onto_bc'
-    kernel_arguments[cur_kernel] = []
-    cur_kernel_list = kernel_arguments[cur_kernel]
 
-    # Needed global variables
-    cur_kernel_list.append(['bc_map', '__global int *bc_map_global'])
-    cur_kernel_list.append(['bc_map_streamed', '__global int *bc_map_streamed_global'])
-
-    cur_kernel_list.append(['nx_bc', 'const int nx_bc'])
-    cur_kernel_list.append(['ny_bc', 'const int ny_bc'])
-    if dimension == 3:
-        cur_kernel_list.append(['nz_bc', 'const int nz_bc'])
-%>
+${set_current_kernel('copy_streamed_onto_bc')}
+${needs_bc_map()}
+${needs_bc_map_streamed()}
 
 __kernel void
 copy_streamed_onto_bc(
-${print_kernel_args(cur_kernel_list)}
+${print_kernel_args()}
 )
 {
     ${define_thread_location() | wrap1}

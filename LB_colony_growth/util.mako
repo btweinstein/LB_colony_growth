@@ -248,3 +248,5 @@ ${identifier} streamed_index_global = ${get_spatial_index(
 % endif
 
 </%def>
+
+##### Useful copy kernels
