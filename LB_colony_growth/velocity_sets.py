@@ -225,14 +225,16 @@ class D3Q27(Velocity_Set):
         for i in range(self.reflect_list.shape[0]):
             cur_cx = self.cx[i]
             cur_cy = self.cy[i]
+            cur_cz = self.cz[i]
 
             reflect_cx = -cur_cx
             reflect_cy = -cur_cy
+            reflect_cz = -cur_cz
 
-            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
+            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy) & (reflect_cz == self.cz)
             self.reflect_list[i] = np.where(opposite)[0][0]
 
-        # When you go out of bounds in the x direction...and need to reflect back keeping y momentum & z
+        # When you go out of bounds in the x direction...
         slip_x_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
         for i in range(slip_x_index.shape[0]):
             cur_cx = self.cx[i]
@@ -243,47 +245,52 @@ class D3Q27(Velocity_Set):
             reflect_cy = cur_cy
             reflect_cz = cur_cz
 
-            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
+            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy) & (reflect_cz == self.cz)
             slip_x_index[i] = np.where(opposite)[0][0]
 
-        # When you go out of bounds in the y direction...and need to reflect back keeping x momentum
+        # When you go out of bounds in the y direction...
         slip_y_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
         for i in range(slip_y_index.shape[0]):
             cur_cx = self.cx[i]
             cur_cy = self.cy[i]
+            cur_cz = self.cz[i]
 
             reflect_cx = cur_cx
             reflect_cy = -cur_cy
+            reflect_cz = cur_cz
 
-            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
+            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy) & (reflect_cz == self.cz)
             slip_y_index[i] = np.where(opposite)[0][0]
 
-        # When you go out of bounds in the z direction...and need to reflect back keeping z momentum
-        slip_y_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
+        # When you go out of bounds in the z direction...
+        slip_z_index = np.zeros(self.num_jumpers, order='F', dtype=int_type)
         for i in range(slip_y_index.shape[0]):
             cur_cx = self.cx[i]
             cur_cy = self.cy[i]
+            cur_cz = self.cz[i]
 
             reflect_cx = cur_cx
-            reflect_cy = -cur_cy
+            reflect_cy = cur_cy
+            reflect_cz = -cur_cz
 
-            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy)
-            slip_y_index[i] = np.where(opposite)[0][0]
+            opposite = (reflect_cx == self.cx) & (reflect_cy == self.cy) & (reflect_cz == self.cz)
+            slip_z_index[i] = np.where(opposite)[0][0]
 
         self.slip_list = np.array([slip_x_index, slip_y_index, slip_z_index], order='F', dtype=int_type)
 
 
         # Define other important info
         self.halo = int_type(1)
-        self.buf_nx = int_type(self.sim.ctx_info['local_size'][0] + 2*self.halo)
-        self.buf_ny = int_type(self.sim.ctx_info['local_size'][1] + 2*self.halo)
-        self.buf_nz = None
+        local_size = self.sim.ctx_info['local_size']
+        self.buf_nx = int_type(local_size[0] + 2*self.halo)
+        self.buf_ny = int_type(local_size[1] + 2*self.halo)
+        self.buf_nz = int_type(local_size[2] + 2*self.halo)
 
         self.nx_bc = int_type(self.sim.ctx_info['nx'] + 2*self.halo)
         self.ny_bc = int_type(self.sim.ctx_info['ny'] + 2*self.halo)
-        self.nz_bc = None
+        self.nz_bc = int_type(self.sim.ctx_info['nz'] + 2*self.halo)
 
-        self.bc_size = (self.nx_bc, self.ny_bc)
+        self.bc_size = (self.nx_bc, self.ny_bc, self.nz_bc)
 
         # Now that everything is defined...set the corresponding kernel definitions
         self.set_kernel_args()

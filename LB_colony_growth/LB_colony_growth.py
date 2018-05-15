@@ -168,6 +168,8 @@ class DLA_Colony(object):
         self.velocity_set = None
         if velocity_set == 'D2Q9':
             self.velocity_set = D2Q9(self)
+        if velocity_set == 'D3Q27':
+            self.velocity_set = D3Q27(self)
 
         # Determine the relxation time scale
         self.tau = num_type(.5 + self.D / (self.velocity_set.cs ** 2))
