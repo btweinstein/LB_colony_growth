@@ -1,9 +1,14 @@
-<%def name='print_kernel_args()' filter='trim'>
+<%!
+    from LB_colony_growth.filters import space4
+%>
+
+
+<%def name='print_kernel_args()' filter='trim' buffered='True' >
 <%
     k = kernel_arguments['current_kernel_list']
     num_args = len(k)
     for i in range(num_args):
-        context.write('     ')
+        context.write(space4)
         context.write(k[i][1])
         if i < num_args - 1:
             context.write(',\n')

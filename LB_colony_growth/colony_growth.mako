@@ -61,7 +61,7 @@ ${needs_reflect_list()}
 
 __kernel void
 collide_and_propagate(
-${print_kernel_args()}
+    ${print_kernel_args()}
 )
 {
     // Get info about where thread is located in global memory
@@ -223,7 +223,7 @@ ${needs_num_jumpers()}
 
 __kernel void
 update_after_streaming(
-${print_kernel_args()}
+    ${print_kernel_args()}
 )
 {
     // Get info about where thread is located in global memory
@@ -281,7 +281,7 @@ ${needs_num_jumpers()}
 
 __kernel void
 init_feq(
-${print_kernel_args()}
+    ${print_kernel_args()}
 )
 {
     // Get info about where thread is located in global memory
@@ -326,7 +326,7 @@ ${needs_local_buf_size()}
 
 __kernel void
 reproduce(
-${print_kernel_args()}
+    ${print_kernel_args()}
 )
 {
     // Get info about where thread is located in global memory
@@ -446,4 +446,5 @@ if (space_to_reproduce){
 
 //######### Copy kernels #########
 ${needs_copy_streamed_onto_f()}
+
 ${needs_copy_streamed_onto_bc()}
