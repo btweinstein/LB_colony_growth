@@ -30,7 +30,7 @@ __constant int cy_nearest[6] = {0,  0, 1,-1, 0, 0};
 __constant int cz_nearest[6] = {0,  0, 0, 0, 1,-1};
 %endif
 
-######### Collide & Propagate kernel ########
+//######### Collide & Propagate kernel ########
 
 ${set_current_kernel('collide_and_propagate')}
 
@@ -61,7 +61,7 @@ ${needs_reflect_list()}
 
 __kernel void
 collide_and_propagate(
-${print_kernel_args(cur_kernel_list)}
+${print_kernel_args()}
 )
 {
     // Get info about where thread is located in global memory
@@ -208,7 +208,7 @@ f_streamed_global[streamed_index_global] = new_f;
 
 </%def>
 
-######### Update after streaming kernel #########
+//######### Update after streaming kernel #########
 <%
     cur_kernel = 'update_after_streaming'
     kernel_arguments[cur_kernel] = []
@@ -278,7 +278,7 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
 
 </%def>
 
-######### Update feq for initialization #####
+//######### Update feq for initialization #####
 
 <%
     cur_kernel = 'init_feq'
@@ -312,7 +312,7 @@ ${print_kernel_args(cur_kernel_list)}
 }
 
 
-######### Reproduce cells kernel #########
+//######### Reproduce cells kernel #########
 <%
     cur_kernel = 'reproduce'
     kernel_arguments[cur_kernel] = []
@@ -468,7 +468,7 @@ if (space_to_reproduce){
 
 </%def>
 
-######### Copy kernels #########
+//######### Copy kernels #########
 <%
     cur_kernel = 'copy_streamed_onto_f'
     kernel_arguments[cur_kernel] = []
