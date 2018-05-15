@@ -96,7 +96,7 @@
 <%def name='needs_local_mem_int(name, modifier="")' filter='trim'>
 <%
     k = kernel_arguments['current_kernel_list']
-    k.append(['local_mem_int', '__local '+modifier+' '+num_type+' *'+name])
+    k.append(['local_mem_int', '__local '+modifier+' int *'+name])
 %>
 </%def>
 
