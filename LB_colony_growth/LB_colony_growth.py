@@ -18,13 +18,10 @@ import weakref
 
 from velocity_sets import *
 
-from pyevtk.hl import imageToVTK
+from tvtk.api import tvtk
+from tvtk.api import write_data
 
 import inspect
-
-# Required to draw obstacles
-import skimage as ski
-import skimage.draw
 
 # Get path to *this* file. Necessary when reading in opencl code.
 full_path = os.path.realpath(__file__)
@@ -384,11 +381,19 @@ class DLA_Colony(object):
 
     def output_fields(self, name):
 
-        population = self.get_pop_field()
-        rho = self.rho.get()
+        idata = tvtk.ImageData(spacing=(1, 1, 1), origin=(0, 0, 0))
 
-        imageToVTK(name + '_' + str(self.elapsed_time),
-                  cellData={
-                      'population': np.dstack([population]),
-                      'rho': np.dstack([rho])
-                  })
+        # Population
+        pops = self.get_pop_field()
+        idata.cell_data.scalars = pops.ravel(order='F')
+        idata.cell_data.scalars.name = 'population'
+
+        # Density
+        rho = self.rho.get()
+        t = idata.cell_data.add_array(rho.ravel(order='F'))
+        idata.cell_data.get_array(t).name = 'rho'
+
+        # I don't understand why the dimensions need to be padded by one, but things work this way...evidently cells need extra space?
+        idata.dimensions = np.array(rho.shape) + 1
+
+        write_data(idata, name + '_' + str(self.elapsed_time) + '.vtk')
