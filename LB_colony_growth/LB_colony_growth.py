@@ -18,7 +18,7 @@ import weakref
 
 from velocity_sets import *
 
-from pyevtk.hl import gridToVTK
+from pyevtk.hl import imageToVTK
 
 import inspect
 
@@ -384,21 +384,10 @@ class DLA_Colony(object):
 
     def output_fields(self, name):
 
-        dimension = self.ctx_info['dimension']
-        nx = self.ctx_info['nx']
-        ny = self.ctx_info['ny']
-        nz = self.ctx_info['nz']
-
-        x = np.arange(0, nx + 1, dtype=np.int32)
-        y = np.arange(0, ny + 1, dtype=np.int32)
-        z = np.array([0], dtype=np.int32)
-        if dimension == 3:
-            z = np.arange(0, nz + 1, dtype=np.int32)
-
         population = self.get_pop_field()
         rho = self.rho.get()
 
-        gridToVTK(name + '_' + str(self.elapsed_time), x, y, z,
+        imageToVTK(name + '_' + str(self.elapsed_time),
                   cellData={
                       'population': np.dstack([population]),
                       'rho': np.dstack([rho])
