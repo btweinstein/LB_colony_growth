@@ -384,7 +384,7 @@ class DLA_Colony(object):
         idata = tvtk.ImageData(spacing=(1, 1, 1), origin=(0, 0, 0))
 
         # Population
-        pops = self.get_pop_field()
+        pops = self.get_pop_field().astype(self.num_type)
         idata.cell_data.scalars = pops.ravel(order='F')
         idata.cell_data.scalars.name = 'population'
 
