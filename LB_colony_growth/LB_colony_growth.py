@@ -137,6 +137,20 @@ class DLA_Colony(object):
         print 'global size:' , self.global_size
         print 'local size:' , self.local_size
 
+        # Initialize the velocity set...and other important context-wide
+        # variables.
+        self.velocity_set = None
+        if velocity_set == 'D2Q9':
+            self.velocity_set = D2Q9(self)
+        if velocity_set == 'D3Q27':
+            self.velocity_set = D3Q27(self)
+
+        # It is convenient for the number of jumpers to be hard-coded into the entire openCL code.
+        # On the CPU, this allows for the loops to be more efficiently vectorized.
+        self.ctx_info['DLA_colony_specific_args'] = {}
+        self.ctx_info['DLA_colony_specific_args']['num_jumpers'] = int_type(self.velocity_set.num_jumpers)
+
+
         # Initialize the opencl environment
         self.context = context     # The pyOpenCL context
         self.queue = None       # The queue used to issue commands to the desired device
@@ -159,20 +173,6 @@ class DLA_Colony(object):
 
         self.D = num_type(D)
         self.kernel_args['D'] = self.D
-
-        # Initialize the velocity set...and other important context-wide
-        # variables.
-        self.velocity_set = None
-        if velocity_set == 'D2Q9':
-            self.velocity_set = D2Q9(self)
-        if velocity_set == 'D3Q27':
-            self.velocity_set = D3Q27(self)
-
-        # It is convenient for the number of jumpers to be hard-coded into the entire openCL code.
-        # On the CPU, this allows for the loops to be more efficiently vectorized.
-        self.ctx_info['DLA_colony_specific_args'] = {}
-        self.ctx_info['DLA_colony_specific_args']['num_jumpers'] = int_type(self.velocity_set.num_jumpers)
-
 
         # Determine the relxation time scale
         self.tau = num_type(.5 + self.D / (self.velocity_set.cs ** 2))
