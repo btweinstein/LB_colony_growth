@@ -270,7 +270,8 @@ ${needs_f()}
 ${needs_f_streamed()}
 
 ## Velocity set info
-${needs_num_jumpers()}
+## Assume that num_jumpers is defined already in the "define" part of the code
+## ${needs_num_jumpers()}
 
 __kernel void
 copy_streamed_onto_f(

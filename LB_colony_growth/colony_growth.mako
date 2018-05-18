@@ -14,6 +14,9 @@ ${enable_double_support()}
 #define nz ${nz}
 % endif
 
+//Define the number of jumpers
+#define num_jumpers ${DLA_colony_specific_args['num_jumpers']}
+
 ${define_node_types()}
 
 // Everything works as long as halo is one...really should be velocity set dependent.
@@ -52,7 +55,6 @@ ${needs_k_list()}
 ${needs_D()}
 
 ## Lattice velocity choices
-${needs_num_jumpers()}
 ${needs_omega()}
 ${needs_c_vec()}
 ${needs_c_mag()}
@@ -220,7 +222,6 @@ ${needs_rho()}
 
 ## Velocity set info
 ${needs_w()}
-${needs_num_jumpers()}
 
 __kernel void
 update_after_streaming(
@@ -278,7 +279,6 @@ ${needs_rho()}
 
 ## Velocity set info
 ${needs_w()}
-${needs_num_jumpers()}
 
 __kernel void
 init_feq(
@@ -318,7 +318,6 @@ ${needs_m_reproduce_list()}
 
 ## Velocity set info
 ${needs_w()}
-${needs_num_jumpers()}
 ${needs_c_vec()}
 
 ## Local memory info
