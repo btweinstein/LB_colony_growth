@@ -167,6 +167,10 @@ class D2Q9(Velocity_Set):
         # Now that everything is defined...set the corresponding kernel definitions
         self.set_kernel_args()
 
+    @classmethod
+    def get_num_jumpers(cls):
+        return np.int32(9)
+
 class D3Q27(Velocity_Set):
 
     def __init__(self, sim):
