@@ -30,6 +30,7 @@ parent_dir = os.path.dirname(file_dir)
 
 # Required for allocating local memory
 int_type = np.int32
+int_size = ct.sizeof(ct.c_int)
 
 # Constants for defining the node map...
 FLUID_NODE = int_type(0)
@@ -242,10 +243,12 @@ class DLA_Colony(object):
         self.kernel_args['rand'] = self.rand_array.data
 
         # Create global memory required for reproduction
-        can_reproduce = np.array([0], dtype=int_type, order='F')
-        self.can_reproduce = cl.array.to_device(self.queue, can_reproduce)
+        # It's faster to just work with opencl buffers directly in this case.
+        self.can_reproduce_host = np.array([1], dtype=int_type, order='F')
+        self.can_reproduce = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, int_size)
+        cl.enqueue_copy(self.queue, self.can_reproduce, self.can_reproduce_host, is_blocking=False)
 
-        self.kernel_args['can_reproduce_pointer'] = self.can_reproduce.data
+        self.kernel_args['can_reproduce_pointer'] = self.can_reproduce
 
         # Generate the rest of the needed kernels
         ker = self.kernels
@@ -266,18 +269,25 @@ class DLA_Colony(object):
             self.copy_streamed_onto_f.run().wait() # TODO: Use the ABA access patern for streaming
             self.update_after_streaming.run().wait()
 
-            # Reproduce!
-            self.can_reproduce[0] = int_type(1) # Test if anyone can reproduce
+            ### Reproduce! ###
+
+            # Reset the can_reproduce pointer
+            self.can_reproduce_host[0] = int_type(1)
+            cl.enqueue_copy(self.queue, self.can_reproduce, self.can_reproduce_host, is_blocking=False)
             num_times = 0
-            while (self.can_reproduce[0] == 1):
+            while (self.can_reproduce_host[0] == 1):
                 # Generate new random numbers
                 self.random_generator.fill_uniform(self.rand_array, queue=self.queue)
                 self.rand_array.finish()
 
-                # Attempt to reproduce
-                self.can_reproduce[0] = int_type(0) # The kernel will reset the flag if anyone can reproduce
+                # Attempt to reproduce; the kernel will reset the flag if anyone can reproduce
+                self.can_reproduce_host[0] = int_type(0)
+                cl.enqueue_copy(self.queue, self.can_reproduce, self.can_reproduce_host, is_blocking=False)
+
                 self.reproduce.run().wait()
                 self.copy_streamed_onto_bc.run().wait()
+
+                cl.enqueue_copy(self.queue, self.can_reproduce_host, self.can_reproduce, is_blocking=False)
 
                 num_times += 1
                 if num_times >= reproduction_cutoff:
