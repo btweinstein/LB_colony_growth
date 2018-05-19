@@ -282,7 +282,7 @@ class DLA_Colony(object):
 
                 # Attempt to reproduce; the kernel will reset the flag if anyone can reproduce
                 self.can_reproduce_host[0] = int_type(0)
-                cl.enqueue_copy(self.queue, self.can_reproduce, self.can_reproduce_host, is_blocking=True)
+                cl.enqueue_copy(self.queue, self.can_reproduce, self.can_reproduce_host, is_blocking=False)
 
                 self.reproduce.run().wait()
                 self.copy_streamed_onto_bc.run().wait()
