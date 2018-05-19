@@ -180,7 +180,7 @@ else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bouncebac
 
     streamed_index_global = reflect_index;
 }
-    /*
+
 else if (streamed_bc < 0){ // You are at a population node
     // Determine Cwall via finite difference...
 
@@ -205,6 +205,7 @@ else if (streamed_bc < 0){ // You are at a population node
     streamed_index_global = reflect_index;
     new_f = -f_after_collision + 2*cur_w*rho_wall;
 }
+/*
 else if (streamed_bc == NOT_IN_DOMAIN){
     printf("There is something wrong with the BC-map! I'm streaming to a not-defined region...\n");
 }
