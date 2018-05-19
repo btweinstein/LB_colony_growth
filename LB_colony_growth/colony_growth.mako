@@ -20,7 +20,10 @@ ${enable_double_support()}
 ${define_node_types()}
 
 // Everything works as long as halo is one...really should be velocity set dependent.
-# define halo 1
+# define halo  ${DLA_colony_specific_args['halo']}
+<%
+    assert DLA_colony_specific_args['halo'] == 1, 'Program will not work correctly if halo != 1 currently...choose a different velocity set.'
+%>
 
 %if dimension==2:
 #define NUM_NEAREST_NEIGHBORS 4

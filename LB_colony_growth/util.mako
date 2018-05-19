@@ -275,7 +275,7 @@ ${needs_f_streamed()}
 
 __kernel void
 copy_streamed_onto_f(
-${print_kernel_args()}
+    ${print_kernel_args()}
 )
 {
     ${define_thread_location() | wrap1}
@@ -299,7 +299,7 @@ ${needs_bc_map_streamed()}
 
 __kernel void
 copy_streamed_onto_bc(
-${print_kernel_args()}
+    ${print_kernel_args()}
 )
 {
     ${define_thread_location() | wrap1}
