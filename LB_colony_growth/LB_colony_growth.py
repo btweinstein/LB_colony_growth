@@ -137,19 +137,15 @@ class DLA_Colony(object):
         print 'global size:' , self.global_size
         print 'local size:' , self.local_size
 
-        # Initialize the velocity set...and other important context-wide
-        # variables.
-        self.velocity_set = None
-        if velocity_set == 'D2Q9':
-            self.velocity_set = D2Q9(self)
-        if velocity_set == 'D3Q27':
-            self.velocity_set = D3Q27(self)
-
         # It is convenient for the number of jumpers to be hard-coded into the entire openCL code.
-        # On the CPU, this allows for the loops to be more efficiently vectorized.
+        # On the CPU, this allows for the loops to be more efficiently vectorized. Pull static variables as appropriate.
         self.ctx_info['DLA_colony_specific_args'] = {}
-        self.ctx_info['DLA_colony_specific_args']['num_jumpers'] = int_type(self.velocity_set.num_jumpers)
-
+        if velocity_set == 'D2Q9':
+            self.ctx_info['DLA_colony_specific_args']['num_jumpers'] = int_type(D2Q9.num_jumpers)
+            self.ctx_info['DLA_colony_specific_args']['halo'] = int_type(D2Q9.halo)
+        elif velocity_set == 'D3Q27':
+            self.ctx_info['DLA_colony_specific_args']['num_jumpers'] = int_type(D3Q27.num_jumpers)
+            self.ctx_info['DLA_colony_specific_args']['halo'] = int_type(D3Q27.halo)
 
         # Initialize the opencl environment
         self.context = context     # The pyOpenCL context
@@ -157,6 +153,14 @@ class DLA_Colony(object):
         self.kernels = None     # Compiled OpenCL kernels
         self.use_interop = use_interop
         self.init_opencl()      # Initializes all items required to run OpenCL code
+
+        # Initialize the velocity set now that the opencl context is created...and other important context-wide
+        # variables.
+        self.velocity_set = None
+        if velocity_set == 'D2Q9':
+            self.velocity_set = D2Q9(self)
+        if velocity_set == 'D3Q27':
+            self.velocity_set = D3Q27(self)
 
         # Convert the list of k's and m_reproduce to buffer
         assert k_list is not None, 'Need k for each allele'
@@ -174,7 +178,7 @@ class DLA_Colony(object):
         self.D = num_type(D)
         self.kernel_args['D'] = self.D
 
-        # Determine the relxation time scale
+        # Determine the relaxation time scale
         self.tau = num_type(.5 + self.D / (self.velocity_set.cs ** 2))
         print 'tau', self.tau
         self.omega = num_type(self.tau ** -1.)  # The relaxation time of the jumpers in the simulation
@@ -261,8 +265,6 @@ class DLA_Colony(object):
             self.collide_and_propagate.run().wait()
             self.copy_streamed_onto_f.run().wait() # TODO: Use the ABA access patern for streaming
             self.update_after_streaming.run().wait()
-
-            #plt.imshow(self.absorbed_mass.get() > 1.)
 
             # Reproduce!
             self.can_reproduce[0] = int_type(1) # Test if anyone can reproduce
