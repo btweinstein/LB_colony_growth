@@ -273,7 +273,6 @@ class DLA_Colony(object):
 
             # Reset the can_reproduce pointer
             self.can_reproduce_host[0] = int_type(1)
-            cl.enqueue_copy(self.queue, self.can_reproduce, self.can_reproduce_host, is_blocking=True)
             num_times = 0
             while (self.can_reproduce_host[0] == 1):
                 # Generate new random numbers
