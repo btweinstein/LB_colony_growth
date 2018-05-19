@@ -246,7 +246,7 @@ class DLA_Colony(object):
         # It's faster to just work with opencl buffers directly in this case.
         self.can_reproduce_host = np.array([1], dtype=int_type, order='F')
         self.can_reproduce = cl.Buffer(self.context, cl.mem_flags.READ_WRITE, int_size)
-        cl.enqueue_copy(self.queue, self.can_reproduce, self.can_reproduce_host, is_blocking=False)
+        cl.enqueue_copy(self.queue, self.can_reproduce, self.can_reproduce_host, is_blocking=True)
 
         self.kernel_args['can_reproduce_pointer'] = self.can_reproduce
 
@@ -273,7 +273,7 @@ class DLA_Colony(object):
 
             # Reset the can_reproduce pointer
             self.can_reproduce_host[0] = int_type(1)
-            cl.enqueue_copy(self.queue, self.can_reproduce, self.can_reproduce_host, is_blocking=False)
+            cl.enqueue_copy(self.queue, self.can_reproduce, self.can_reproduce_host, is_blocking=True)
             num_times = 0
             while (self.can_reproduce_host[0] == 1):
                 # Generate new random numbers
@@ -282,12 +282,12 @@ class DLA_Colony(object):
 
                 # Attempt to reproduce; the kernel will reset the flag if anyone can reproduce
                 self.can_reproduce_host[0] = int_type(0)
-                cl.enqueue_copy(self.queue, self.can_reproduce, self.can_reproduce_host, is_blocking=False)
+                cl.enqueue_copy(self.queue, self.can_reproduce, self.can_reproduce_host, is_blocking=True)
 
                 self.reproduce.run().wait()
                 self.copy_streamed_onto_bc.run().wait()
 
-                cl.enqueue_copy(self.queue, self.can_reproduce_host, self.can_reproduce, is_blocking=False)
+                cl.enqueue_copy(self.queue, self.can_reproduce_host, self.can_reproduce, is_blocking=True)
 
                 num_times += 1
                 if num_times >= reproduction_cutoff:
