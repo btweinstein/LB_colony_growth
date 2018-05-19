@@ -89,6 +89,21 @@ class Velocity_Set(object):
 
 class D2Q9(Velocity_Set):
 
+    # Static variables
+    w = np.array([4. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 36.,
+                      1. / 36., 1. / 36., 1. / 36.])
+
+    cx = np.array([0, 1, 0, -1, 0, 1, -1, -1, 1])
+    cy = np.array([0, 0, 1, 0, -1, 1, 1, -1, -1])
+
+    cs = 1. / np.sqrt(3)
+
+    num_jumpers = 9
+
+    halo = 1
+
+    # Instance variables that depend on the opencl and mako contexts
+
     def __init__(self, sim):
 
         super(D2Q9, self).__init__(sim)
@@ -102,16 +117,15 @@ class D2Q9(Velocity_Set):
         num_type = self.sim.num_type
         int_type = np.int32
 
-        self.w = np.array([4. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 9., 1. / 36.,
-                      1. / 36., 1. / 36., 1. / 36.], order='F', dtype=num_type)  # weights for directions
-        self.cx = np.array([0, 1, 0, -1, 0, 1, -1, -1, 1], order='F', dtype=int_type)  # direction vector for the x direction
-        self.cy = np.array([0, 0, 1, 0, -1, 1, 1, -1, -1], order='F', dtype=int_type)  # direction vector for the y direction
+        self.w = np.array(D2Q9.w, order='F', dtype=num_type)  # weights for directions
+        self.cx = np.array(D2Q9.cx, order='F', dtype=int_type)  # direction vector for the x direction
+        self.cy = np.array(D2Q9.cy, order='F', dtype=int_type)  # direction vector for the y direction
 
         self.c_vec = np.array([self.cx, self.cy], order='F', dtype=int_type)
         self.c_mag = np.sqrt(np.sum(self.c_vec**2, axis=0), order='F', dtype=num_type)
 
-        self.cs = num_type(1. / np.sqrt(3))  # Speed of sound on the lattice
-        self.num_jumpers = int_type(9)  # Number of jumpers for the D2Q9 lattice: 9
+        self.cs = num_type(D2Q9.cs)  # Speed of sound on the lattice
+        self.num_jumpers = int_type(D2Q9.num_jumpers)  # Number of jumpers for the D2Q9 lattice: 9
 
         # Create arrays for bounceback and zero-shear/symmetry conditions
         self.reflect_list = np.zeros(self.num_jumpers, order='F', dtype=int_type)
@@ -153,7 +167,7 @@ class D2Q9(Velocity_Set):
 
 
         # Define other important info
-        self.halo = int_type(1)
+        self.halo = int_type(D2Q9.halo)
         self.buf_nx = int_type(self.sim.ctx_info['local_size'][0] + 2*self.halo)
         self.buf_ny = int_type(self.sim.ctx_info['local_size'][1] + 2*self.halo)
         self.buf_nz = None
@@ -167,11 +181,50 @@ class D2Q9(Velocity_Set):
         # Now that everything is defined...set the corresponding kernel definitions
         self.set_kernel_args()
 
-    @classmethod
-    def get_num_jumpers(cls):
-        return np.int32(9)
 
 class D3Q27(Velocity_Set):
+
+    w = np.array(
+            [
+                8./27.,
+                2./27., 2./27., 2./27., 2./27., 2./27., 2./27.,
+                1./54., 1./54., 1./54., 1./54., 1./54., 1./54.,
+                1./54., 1./54., 1./54., 1./54., 1./54., 1./54.,
+                1./216., 1./216., 1./216., 1./216., 1./216., 1./216.,
+                1./216., 1./216.
+            ])  # weights for directions
+
+    cx = np.array(
+        [
+            0, 1, -1,
+            0, 0, 0, 0,
+            1, -1, 1, -1, 0, 0,
+            1, -1, 1, -1, 0, 0,
+            1, -1, 1, -1, 1, -1, -1, 1
+        ])  # direction vector for the x direction
+
+    cy = np.array(
+        [
+            0, 0, 0,
+            1, -1, 0, 0,
+            1, -1, 0, 0,
+            1, -1, -1, 1, 0, 0,
+            1, -1, 1, -1, 1, -1, -1, 1, 1, -1
+        ])  # direction vector for the y direction
+
+    cz = np.array(
+        [
+            0, 0, 0, 0, 0,
+            1, -1, 0, 0,
+            1, -1, 1, -1, 0, 0,
+            -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1, -1
+        ])  # direction vector for the z direction
+
+    cs = 1. / np.sqrt(3)
+
+    num_jumpers = 27
+
+    halo = 1
 
     def __init__(self, sim):
 
@@ -183,47 +236,18 @@ class D3Q27(Velocity_Set):
         int_type = np.int32
 
         # Pulled from LB principles and practice
-        self.w = np.array(
-            [
-                8./27.,
-                2./27., 2./27., 2./27., 2./27., 2./27., 2./27.,
-                1./54., 1./54., 1./54., 1./54., 1./54., 1./54.,
-                1./54., 1./54., 1./54., 1./54., 1./54., 1./54.,
-                1./216., 1./216., 1./216., 1./216., 1./216., 1./216.,
-                1./216., 1./216.
-            ], order='F', dtype=num_type)  # weights for directions
+        self.w = np.array(D3Q27.w, order='F', dtype=num_type)  # weights for directions
 
-        self.cx = np.array(
-            [
-                0, 1, -1,
-                0, 0, 0, 0,
-                1, -1, 1, -1, 0, 0,
-                1, -1, 1, -1, 0, 0,
-                1, -1, 1, -1, 1, -1, -1, 1
-            ], order='F', dtype=int_type)  # direction vector for the x direction
+        self.cx = np.array(D3Q27.cx, order='F', dtype=int_type)  # direction vector for the x direction
+        self.cy = np.array(D3Q27.cy, order='F', dtype=int_type)  # direction vector for the y direction
 
-        self.cy = np.array(
-            [
-                0, 0, 0,
-                1, -1, 0, 0,
-                1, -1, 0, 0,
-                1, -1, -1, 1, 0, 0,
-                1, -1, 1, -1, 1, -1, -1, 1, 1, -1
-             ], order='F', dtype=int_type)  # direction vector for the y direction
-
-        self.cz = np.array(
-            [
-                0, 0, 0, 0, 0,
-                1, -1, 0, 0,
-                1, -1, 1, -1, 0, 0,
-                -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1, -1
-            ], order='F', dtype=int_type)  # direction vector for the z direction
+        self.cz = np.array(D3Q27.cz, order='F', dtype=int_type)  # direction vector for the z direction
 
         self.c_vec = np.array([self.cx, self.cy, self.cz], order='F', dtype=int_type)
         self.c_mag = np.sqrt(np.sum(self.c_vec**2, axis=0), order='F', dtype=num_type)
 
-        self.cs = num_type(1. / np.sqrt(3))  # Speed of sound on the lattice
-        self.num_jumpers = int_type(27)  # Number of jumpers for the D2Q9 lattice: 9
+        self.cs = D3Q27.cs  # Speed of sound on the lattice
+        self.num_jumpers = int_type(D3Q27.num_jumpers)  # Number of jumpers for the D2Q9 lattice: 9
 
         # Create arrays for bounceback and zero-shear/symmetry conditions
         self.reflect_list = np.zeros(self.num_jumpers, order='F', dtype=int_type)
@@ -283,9 +307,8 @@ class D3Q27(Velocity_Set):
 
         self.slip_list = np.array([slip_x_index, slip_y_index, slip_z_index], order='F', dtype=int_type)
 
-
         # Define other important info
-        self.halo = int_type(1)
+        self.halo = int_type(D3Q27.halo)
         local_size = self.sim.ctx_info['local_size']
         self.buf_nx = int_type(local_size[0] + 2*self.halo)
         self.buf_ny = int_type(local_size[1] + 2*self.halo)
