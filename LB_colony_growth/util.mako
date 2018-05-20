@@ -88,7 +88,7 @@ if (idx_1d < buf_nx) {
         ${num_type} value = ${default_value};
         % if var_name is not None:
         // If in the domain...
-        if((temp_x < nx) && (temp_x > 0) && (temp_y < ny) && (temp_y > 0)){
+        if((temp_x < nx) && (temp_x >= 0) && (temp_y < ny) && (temp_y >= 0)){
             int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'nx', 'ny')};
             value = ${var_name}[temp_index];
         }
@@ -107,7 +107,7 @@ if (idx_2d < buf_ny * buf_nx) {
 
         ${num_type} value = ${default_value};
         % if var_name is not None:
-        if((temp_x < nx) && (temp_x > 0) && (temp_y < ny) && (temp_y > 0) && (temp_z < nz) && (temp_z > 0)){
+        if((temp_x < nx) && (temp_x >= 0) && (temp_y < ny) && (temp_y >= 0) && (temp_z < nz) && (temp_z >= 0)){
             int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'temp_z', 'nx', 'ny', 'nz')};
             value = ${var_name}[temp_index];
         }
