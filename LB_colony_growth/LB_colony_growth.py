@@ -32,11 +32,6 @@ parent_dir = os.path.dirname(file_dir)
 int_type = np.int32
 int_size = ct.sizeof(ct.c_int)
 
-# Constants for defining the node map...
-FLUID_NODE = int_type(0)
-WALL_NODE = int_type(1)
-NOT_IN_DOMAIN = int_type(2)
-
 def get_divisible_global(global_size, local_size):
     """
     Given a desired global size and a specified local size, return the smallest global
@@ -194,6 +189,10 @@ class DLA_Colony(object):
         bc_map = np.array(bc_map, dtype=int_type, order='F')
         self.bc_map = cl.array.to_device(self.queue, bc_map)
         self.bc_map_streamed = self.bc_map.copy()
+
+        # Create a list of unique BC's, so the kernel doesn't have to check for all of them
+        self.unique_bcs = np.unique(bc_map)
+        self.ctx_info['DLA_colony_specific_args']['unique_bcs'] = self.unique_bcs
 
         self.kernel_args['bc_map'] = self.bc_map.data
         self.kernel_args['bc_map_streamed'] = self.bc_map_streamed.data

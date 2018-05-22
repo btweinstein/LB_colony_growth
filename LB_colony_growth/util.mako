@@ -1,5 +1,6 @@
 <%!
     from LB_colony_growth.filters import wrap1, wrap2, wrap3, wrap4
+    import LB_colony_growth.node_types as nt
 %>
 
 ### Various mako utility code
@@ -20,6 +21,7 @@
 #define FLUID_NODE 0
 #define WALL_NODE 1
 #define NOT_IN_DOMAIN 2
+#define FIXED_DENSITY 3
 </%def>
 
 <%def name='get_spatial_index(*args)', filter='trim'>
