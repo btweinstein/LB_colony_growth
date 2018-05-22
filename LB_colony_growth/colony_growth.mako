@@ -1,5 +1,6 @@
 <%!
     from LB_colony_growth.filters import wrap1, wrap2, wrap3, wrap4
+    from LB_colony_growth.node_types import node_types
 %>
 
 <%namespace file='util.mako' import='*' name='util' />
@@ -170,6 +171,7 @@ if (streamed_bc == FLUID_NODE){
         'nx', 'ny', 'nz', 'num_jumpers')};
     % endif
 }
+%if node_types['WALL_NODE'] in DLA_colony_specific_args['unique_bcs']:
 else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bounceback.
     const int reflect_id = reflect_list[jump_id];
     % if dimension == 2:
@@ -180,7 +182,7 @@ else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bouncebac
 
     streamed_index_global = reflect_index;
 }
-
+%endif
 else if (streamed_bc < 0){ // You are at a population node
     // Determine Cwall via finite difference...
 

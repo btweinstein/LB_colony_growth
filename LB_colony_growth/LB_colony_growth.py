@@ -143,6 +143,10 @@ class DLA_Colony(object):
             self.ctx_info['DLA_colony_specific_args']['num_jumpers'] = int_type(D3Q27.num_jumpers)
             self.ctx_info['DLA_colony_specific_args']['halo'] = int_type(D3Q27.halo)
 
+        # Check what BCs are needed before generating the mako and opencl context
+        self.unique_bcs = np.unique(bc_map)
+        self.ctx_info['DLA_colony_specific_args']['unique_bcs'] = self.unique_bcs
+
         # Initialize the opencl environment
         self.context = context     # The pyOpenCL context
         self.queue = None       # The queue used to issue commands to the desired device
@@ -191,8 +195,6 @@ class DLA_Colony(object):
         self.bc_map_streamed = self.bc_map.copy()
 
         # Create a list of unique BC's, so the kernel doesn't have to check for all of them
-        self.unique_bcs = np.unique(bc_map)
-        self.ctx_info['DLA_colony_specific_args']['unique_bcs'] = self.unique_bcs
 
         self.kernel_args['bc_map'] = self.bc_map.data
         self.kernel_args['bc_map_streamed'] = self.bc_map_streamed.data
