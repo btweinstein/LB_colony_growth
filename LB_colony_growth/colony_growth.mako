@@ -183,6 +183,18 @@ else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bouncebac
     streamed_index_global = reflect_index;
 }
 %endif
+%if node_types['WALL_NODE'] in DLA_colony_specific_args['unique_bcs']:
+else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bounceback.
+    const int reflect_id = reflect_list[jump_id];
+    % if dimension == 2:
+    const int reflect_index = spatial_index + nx*ny*reflect_id;
+    % elif dimension == 3:
+    const int reflect_index = spatial_index + nx*ny*nz*reflect_id;
+    % endif
+
+    streamed_index_global = reflect_index;
+}
+%endif
 else if (streamed_bc < 0){ // You are at a population node
     // Determine Cwall via finite difference...
 
