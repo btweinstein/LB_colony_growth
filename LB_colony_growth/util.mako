@@ -129,22 +129,25 @@ if (idx_1d < buf_nx) {
 
         // If in the bc_map...
         int value = ${default_value};
+        int temp_index = -1; // Dummy value
         if((temp_x < nx + halo) && (temp_x >= -halo) && (temp_y < ny + halo) && (temp_y >= -halo)){
             int temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')};
-            value = ${var_name}[temp_index];
-            %if periodic_replacement:
-            // Replace values with periodic analogs...painful
-            if (value == PERIODIC){
-                if (temp_x < 0) temp_x += nx;
-                if (temp_x >= nx) temp_x -= nx;
-
-                if (temp_y < 0) temp_y += ny;
-                if (temp_y >= ny) temp_y -= ny;6
-
-                temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')}
-            }
-            %endif
         }
+
+        %if periodic_replacement:
+        // Replace values with periodic analogs...painful
+        if (value == PERIODIC){
+            if (temp_x < 0) temp_x += nx;
+            if (temp_x >= nx) temp_x -= nx;
+
+            if (temp_y < 0) temp_y += ny;
+            if (temp_y >= ny) temp_y -= ny;
+
+            temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')}
+        }
+        %endif
+
+        value = ${var_name}[temp_index];
 
         ${local_mem}[row*buf_nx + idx_1d] = value;
     }
