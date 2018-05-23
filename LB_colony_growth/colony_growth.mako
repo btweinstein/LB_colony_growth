@@ -183,16 +183,34 @@ else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bouncebac
     streamed_index_global = reflect_index;
 }
 %endif
-%if node_types['WALL_NODE'] in DLA_colony_specific_args['unique_bcs']:
-else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bounceback.
-    const int reflect_id = reflect_list[jump_id];
-    % if dimension == 2:
-    const int reflect_index = spatial_index + nx*ny*reflect_id;
-    % elif dimension == 3:
-    const int reflect_index = spatial_index + nx*ny*nz*reflect_id;
-    % endif
+%if node_types['PERIODIC'] in DLA_colony_specific_args['unique_bcs']:
+else if (streamed_bc == PERIODIC){ // Zero concentration on the wall; bounceback.
+    int new_x = x + cur_cx;
+    int new_y = y + cur_cy;
+    %if dimension ==3:
+    int new_z = z + cur_cz;
+    %endif
 
-    streamed_index_global = reflect_index;
+    if (new_x < 0) new_x += nx;
+    if (new_x >= nx) new_x -= nx;
+
+    if (new_y < 0) new_y += ny;
+    if (new_y >= ny) new_y -= ny;
+
+    %if dimension == 3:
+    if (new_z < 0) new_z += nz;
+    if (new_z >= nz) new_z -= nz;
+    %endif
+
+    % if dimension == 2:
+    streamed_index_global = ${get_spatial_index(
+    'new_x', 'new_y', 'jump_id',
+    'nx', 'ny', 'num_jumpers')};
+    %elif dimension == 3:
+    streamed_index_global = ${get_spatial_index(
+    'new_x', 'new_y', 'new_z', 'jump_id',
+    'nx', 'ny', 'nz', 'num_jumpers')};
+    %endif
 }
 %endif
 else if (streamed_bc < 0){ // You are at a population node
