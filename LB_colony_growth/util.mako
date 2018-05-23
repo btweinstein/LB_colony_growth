@@ -119,7 +119,7 @@ if (idx_2d < buf_ny * buf_nx) {
 % endif
 </%def>
 
-<%def name='read_bc_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
+<%def name='read_bc_to_local(var_name, local_mem, default_value, periodic_replacement="False")' buffered='True' filter='trim'>
 % if dimension==2:
 if (idx_1d < buf_nx) {
     for (int row = 0; row < buf_ny; row++) {
@@ -132,6 +132,18 @@ if (idx_1d < buf_nx) {
         if((temp_x < nx + halo) && (temp_x >= -halo) && (temp_y < ny + halo) && (temp_y >= -halo)){
             int temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')};
             value = ${var_name}[temp_index];
+            %if periodic_replacement:
+            // Replace values with periodic analogs...painful
+            if (value == PERIODIC){
+                if (temp_x < 0) temp_x += nx;
+                if (temp_x >= nx) temp_x -= nx;
+
+                if (temp_y < 0) temp_y += ny;
+                if (temp_y >= ny) temp_y -= ny;6
+
+                temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')}
+            }
+            %endif
         }
 
         ${local_mem}[row*buf_nx + idx_1d] = value;

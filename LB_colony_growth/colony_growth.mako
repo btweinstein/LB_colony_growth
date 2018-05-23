@@ -412,7 +412,7 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
     ${define_streamed_index_local() | wrap1}
 
     const int streamed_node_type = bc_map_local[streamed_index_local];
-    // Need to correct for periodic BC's
+
     if (streamed_node_type == FLUID_NODE){ // Population can expand into this!
         norm_constant += w[jump_id];
         space_to_reproduce = true;
