@@ -78,13 +78,28 @@ const int local_index = ${get_spatial_index('buf_x', 'buf_y', 'buf_z', 'buf_nx',
 
 </%def>
 
+##### Functions dealing with reading from a halo ####
+
+<%def name='define_local_slice_location()' buffered='True' filter='trim'>
+### When looping over rows or 2d slices when reading in local memory, defines where you are
+%if dimension == 2:
+// Read in 1-d slices
+int temp_x = buf_corner_x + idx_1d;
+int temp_y = buf_corner_y + row;
+%elif dimension == 3:
+// Read in 2-d slices
+int temp_x = buf_corner_x + idx_2d % buf_nx;
+int temp_y = buf_corner_y + idx_2d/buf_nx;
+int temp_z = buf_corner_z + row;
+%endif
+
+</%def>
+
 <%def name='read_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
 % if dimension==2:
 if (idx_1d < buf_nx) {
     for (int row = 0; row < buf_ny; row++) {
-        // Read in 1-d slices
-        int temp_x = buf_corner_x + idx_1d;
-        int temp_y = buf_corner_y + row;
+        ${define_local_slice_location()}
 
         ${num_type} value = ${default_value};
         % if var_name is not None:
@@ -101,10 +116,7 @@ if (idx_1d < buf_nx) {
 % elif dimension == 3:
 if (idx_2d < buf_ny * buf_nx) {
     for (int row = 0; row < buf_nz; row++) {
-        // Read in 2d-slices
-        int temp_x = buf_corner_x + idx_2d % buf_nx;
-        int temp_y = buf_corner_y + idx_2d/buf_nx;
-        int temp_z = buf_corner_z + row;
+        ${define_local_slice_location}
 
         ${num_type} value = ${default_value};
         % if var_name is not None:
