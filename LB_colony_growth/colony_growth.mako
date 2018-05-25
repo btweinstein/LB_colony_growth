@@ -82,6 +82,32 @@ collide_and_propagate(
     barrier(CLK_LOCAL_MEM_FENCE);
     ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN') | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
+    // Based on the bc-map, correct the local density field
+    ${if_local_idx_in_slice()}{
+    for (int row = 0; row < ${slice_loop_length()}; row++) {
+        int cur_buf_x = idx_1d;
+        int cur_buf_y = row;
+
+        ${define_local_slice_location() | wrap2}
+
+        ${num_type} value = ${default_value};
+        % if var_name is not None:
+        ${if_local_slice_location_in_domain() | wrap2}{
+            %if dimension == 2:
+            int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'nx', 'ny')};
+            %elif dimension == 3:
+            int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'temp_z', 'nx', 'ny', 'nz')};
+            %endif
+            value = ${var_name}[temp_index];
+        }
+        % endif
+        %if dimension == 2:
+        ${local_mem}[row*buf_nx + idx_1d] = value;
+        %elif dimension == 3:
+        ${local_mem}[row*buf_ny*buf_nx + idx_2d] = value;
+        %endif
+    }
+}
 
     // Main loop...
     ${if_thread_in_domain() | wrap1}{
