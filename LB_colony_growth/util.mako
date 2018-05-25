@@ -140,57 +140,50 @@ ${if_local_idx_in_slice()}{
         % endif
         %if dimension == 2:
         ${local_mem}[row*buf_nx + idx_1d] = value;
-        %elif dimension == 3
+        %elif dimension == 3:
         ${local_mem}[row*buf_ny*buf_nx + idx_2d] = value;
         %endif
     }
 }
 </%def>
 
+<%def name='if_local_slice_location_in_bc_map()' buffered='True' filter='trim'>
+### When looping over rows or 2d slices when reading in local memory, defines where you are
+// If in the bc_map...
+%if dimension == 2:
+if(
+    (temp_x < nx + halo) && (temp_x >= -halo) &&
+    (temp_y < ny + halo) && (temp_y >= -halo))
+%elif dimension == 3:
+if(
+    (temp_x < nx + halo) && (temp_x >= -halo) &&
+    (temp_y < ny + halo) && (temp_y >= -halo) &&
+    (temp_z < nz + halo) && (temp_z >= -halo))
+%endif
+</%def>
+
 <%def name='read_bc_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
-% if dimension==2:
 ${if_local_idx_in_slice()}{
-    for (int row = 0; row < buf_ny; row++) {
-        // Read in 1-d slices
-        int temp_x = buf_corner_x + idx_1d;
-        int temp_y = buf_corner_y + row;
+    for (int row = 0; row < ${slice_loop_length()}; row++) {
+        ${define_local_slice_location()}
 
-        // If in the bc_map...
         int value = ${default_value};
-        if(
-            (temp_x < nx + halo) && (temp_x >= -halo) &&
-            (temp_y < ny + halo) && (temp_y >= -halo))
+        ${if_local_slice_location_in_bc_map()}
         {
+            %if dimension == 2:
             int temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')};
+            %elif dimension ==3:
+            int temp_Index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', '(temp_z + halo)', 'nx_bc', 'ny_bc', 'nz_bc')};
+            %endif
             value = ${var_name}[temp_index];
         }
-
+        %if dimension == 2:
         ${local_mem}[row*buf_nx + idx_1d] = value;
-    }
-}
-% elif dimension == 3:
-${if_local_idx_in_slice()}{
-    for (int row = 0; row < buf_nz; row++) {
-        // Read in 2d-slices
-        int temp_x = buf_corner_x + idx_2d % buf_nx;
-        int temp_y = buf_corner_y + idx_2d/buf_nx;
-        int temp_z = buf_corner_z + row;
-
-        // If in the bc_map...
-        int value = ${default_value};
-        if(
-            (temp_x < nx + halo) && (temp_x >= -halo) &&
-            (temp_y < ny + halo) && (temp_y >= -halo) &&
-            (temp_z < nz + halo) && (temp_z >= -halo))
-        {
-            int temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', '(temp_z + halo)', 'nx_bc', 'ny_bc', 'nz_bc')};
-            value = ${var_name}[temp_index];
-        }
-
+        %elif dimension == 3:
         ${local_mem}[row*buf_ny*buf_nx + idx_2d] = value;
+        %endif
     }
 }
-% endif
 </%def>
 
 ### Code to fix the halo values depending on the BC's.
