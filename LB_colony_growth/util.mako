@@ -119,7 +119,7 @@ if (idx_2d < buf_ny * buf_nx) {
 % endif
 </%def>
 
-<%def name='read_bc_to_local(var_name, local_mem, default_value, periodic_replacement="False")' buffered='True' filter='trim'>
+<%def name='read_bc_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
 % if dimension==2:
 if (idx_1d < buf_nx) {
     for (int row = 0; row < buf_ny; row++) {
@@ -129,25 +129,13 @@ if (idx_1d < buf_nx) {
 
         // If in the bc_map...
         int value = ${default_value};
-        int temp_index = -1; // Dummy value
-        if((temp_x < nx + halo) && (temp_x >= -halo) && (temp_y < ny + halo) && (temp_y >= -halo)){
+        if(
+            (temp_x < nx + halo) && (temp_x >= -halo) &&
+            (temp_y < ny + halo) && (temp_y >= -halo))
+        {
             int temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')};
+            value = ${var_name}[temp_index];
         }
-
-        %if periodic_replacement:
-        // Replace values with periodic analogs...painful
-        if (value == PERIODIC){
-            if (temp_x < 0) temp_x += nx;
-            if (temp_x >= nx) temp_x -= nx;
-
-            if (temp_y < 0) temp_y += ny;
-            if (temp_y >= ny) temp_y -= ny;
-
-            temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')}
-        }
-        %endif
-
-        value = ${var_name}[temp_index];
 
         ${local_mem}[row*buf_nx + idx_1d] = value;
     }
@@ -156,7 +144,6 @@ if (idx_1d < buf_nx) {
 if (idx_2d < buf_ny * buf_nx) {
     for (int row = 0; row < buf_nz; row++) {
         // Read in 2d-slices
-        //TODO: NEED TO FIX THIS SO THAT IT WORKS THE SAME WAY AS 2D!
         int temp_x = buf_corner_x + idx_2d % buf_nx;
         int temp_y = buf_corner_y + idx_2d/buf_nx;
         int temp_z = buf_corner_z + row;
@@ -177,6 +164,21 @@ if (idx_2d < buf_ny * buf_nx) {
 }
 % endif
 </%def>
+
+### Code to fix the halo values depending on the BC's.
+
+        %if periodic_replacement:
+        // Replace values with periodic analogs...painful
+        if (value == PERIODIC){
+            if (temp_x < 0) temp_x += nx;
+            if (temp_x >= nx) temp_x -= nx;
+
+            if (temp_y < 0) temp_y += ny;
+            if (temp_y >= ny) temp_y -= ny;
+
+            temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')}
+        }
+        %endif
 
 ##### Read in current thread info #####
 
