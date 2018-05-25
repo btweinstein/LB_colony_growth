@@ -125,11 +125,11 @@ buf_nz
 <%def name='read_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
 ${if_local_idx_in_slice()}{
     for (int row = 0; row < ${slice_loop_length()}; row++) {
-        ${define_local_slice_location()}
+        ${define_local_slice_location() | wrap2}
 
         ${num_type} value = ${default_value};
         % if var_name is not None:
-        ${if_local_slice_location_in_domain()}{
+        ${if_local_slice_location_in_domain() | wrap2}{
             %if dimension == 2:
             int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'nx', 'ny')};
             %elif dimension == 3:
@@ -165,10 +165,10 @@ if(
 <%def name='read_bc_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
 ${if_local_idx_in_slice()}{
     for (int row = 0; row < ${slice_loop_length()}; row++) {
-        ${define_local_slice_location()}
+        ${define_local_slice_location() | wrap2}
 
         int value = ${default_value};
-        ${if_local_slice_location_in_bc_map()}
+        ${if_local_slice_location_in_bc_map() | wrap2}
         {
             %if dimension == 2:
             int temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')};
@@ -188,18 +188,18 @@ ${if_local_idx_in_slice()}{
 
 ### Code to fix the halo values depending on the BC's.
 
-        %if periodic_replacement:
-        // Replace values with periodic analogs...painful
-        if (value == PERIODIC){
-            if (temp_x < 0) temp_x += nx;
-            if (temp_x >= nx) temp_x -= nx;
-
-            if (temp_y < 0) temp_y += ny;
-            if (temp_y >= ny) temp_y -= ny;
-
-            temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')}
-        }
-        %endif
+##         %if periodic_replacement:
+##         // Replace values with periodic analogs...painful
+##         if (value == PERIODIC){
+##             if (temp_x < 0) temp_x += nx;
+##             if (temp_x >= nx) temp_x -= nx;
+##
+##             if (temp_y < 0) temp_y += ny;
+##             if (temp_y >= ny) temp_y -= ny;
+##
+##             temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')}
+##         }
+##         %endif
 
 ##### Read in current thread info #####
 
