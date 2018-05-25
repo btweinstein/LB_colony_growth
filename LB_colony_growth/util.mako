@@ -92,48 +92,64 @@ int temp_x = buf_corner_x + idx_2d % buf_nx;
 int temp_y = buf_corner_y + idx_2d/buf_nx;
 int temp_z = buf_corner_z + row;
 %endif
+</%def>
 
+<%def name='if_local_slice_location_in_domain()' buffered='True' filter='trim'>
+### When looping over rows or 2d slices when reading in local memory, defines where you are
+// If in the domain...
+%if dimension == 2:
+if((temp_x < nx) && (temp_x >= 0) && (temp_y < ny) && (temp_y >= 0))
+%elif dimension == 3:
+if((temp_x < nx) && (temp_x >= 0) && (temp_y < ny) && (temp_y >= 0) && (temp_z < nz) && (temp_z >= 0))
+%endif
+</%def>
+
+<%def name='if_local_idx_in_slice()' buffered='True' filter='trim'>
+### When looping over rows or 2d slices when reading in local memory, defines where you are
+%if dimension == 2:
+if (idx_1d < buf_nx)
+%elif dimension == 3:
+if (idx_2d < buf_ny * buf_nx)
+%endif
+</%def>
+
+<%def name='slice_loop_length()' buffered='True' filter='trim'>
+### When looping over rows or 2d slices when reading in local memory, defines where you are
+%if dimension == 2:
+buf_ny
+%elif dimension == 3:
+buf_nz
+%endif
 </%def>
 
 <%def name='read_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
-% if dimension==2:
-if (idx_1d < buf_nx) {
-    for (int row = 0; row < buf_ny; row++) {
+${if_local_idx_in_slice()}{
+    for (int row = 0; row < ${slice_loop_length()}; row++) {
         ${define_local_slice_location()}
 
         ${num_type} value = ${default_value};
         % if var_name is not None:
-        // If in the domain...
-        if((temp_x < nx) && (temp_x >= 0) && (temp_y < ny) && (temp_y >= 0)){
+        ${if_local_slice_location_in_domain()}{
+            %if dimension == 2:
             int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'nx', 'ny')};
-            value = ${var_name}[temp_index];
-        }
-        % endif
-
-        ${local_mem}[row*buf_nx + idx_1d] = value;
-    }
-}
-% elif dimension == 3:
-if (idx_2d < buf_ny * buf_nx) {
-    for (int row = 0; row < buf_nz; row++) {
-        ${define_local_slice_location}
-
-        ${num_type} value = ${default_value};
-        % if var_name is not None:
-        if((temp_x < nx) && (temp_x >= 0) && (temp_y < ny) && (temp_y >= 0) && (temp_z < nz) && (temp_z >= 0)){
+            %elif dimension == 3:
             int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'temp_z', 'nx', 'ny', 'nz')};
+            %endif
             value = ${var_name}[temp_index];
         }
         % endif
+        %if dimension == 2:
+        ${local_mem}[row*buf_nx + idx_1d] = value;
+        %elif dimension == 3
         ${local_mem}[row*buf_ny*buf_nx + idx_2d] = value;
+        %endif
     }
 }
-% endif
 </%def>
 
 <%def name='read_bc_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
 % if dimension==2:
-if (idx_1d < buf_nx) {
+${if_local_idx_in_slice()}{
     for (int row = 0; row < buf_ny; row++) {
         // Read in 1-d slices
         int temp_x = buf_corner_x + idx_1d;
@@ -153,7 +169,7 @@ if (idx_1d < buf_nx) {
     }
 }
 % elif dimension == 3:
-if (idx_2d < buf_ny * buf_nx) {
+${if_local_idx_in_slice()}{
     for (int row = 0; row < buf_nz; row++) {
         // Read in 2d-slices
         int temp_x = buf_corner_x + idx_2d % buf_nx;
