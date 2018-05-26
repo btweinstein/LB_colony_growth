@@ -88,7 +88,7 @@ int temp_buf_x = idx_1d;
 int temp_buf_y = row;
 
 const int temp_local_index = ${get_spatial_index('temp_buf_x', 'temp_buf_y',
-                                                'buf_nx', 'buf_ny')}
+                                                'buf_nx', 'buf_ny')};
 
 int temp_x = buf_corner_x + temp_buf_x;
 int temp_y = buf_corner_y + temp_buf_y;
@@ -99,7 +99,7 @@ int temp_buf_y = idx_2d/buf_nx;
 int temp_buf_z = buf_corner_z + row;
 
 const int temp_local_index = ${get_spatial_index('temp_buf_x', 'temp_buf_y', 'temp_buf_z',
-                                                'buf_nx', 'buf_ny', 'buf_nz')}
+                                                'buf_nx', 'buf_ny', 'buf_nz')};
 
 int temp_x = buf_corner_x + cur_buf_x;
 int temp_y = buf_corner_y + cur_buf_y;
@@ -152,7 +152,7 @@ ${if_local_idx_in_slice()}{
             value = ${var_name}[temp_index];
         }
         % endif
-        // Now check if the location might be in the bc_map...
+
         ${if_local_slice_location_in_bc_map() | wrap2}{
             //If it is, see what value should be on the boundary based on the bc_map.
             const int temp_bc_value = bc_map_local[temp_local_index];
@@ -191,9 +191,8 @@ ${if_local_idx_in_slice()}{
                 %endif
                 <% assert density_map_name is not None, 'Need to provide input of density map name.' %>
                 value = ${density_map_name}[density_map_index];
-            %endif
             }
-
+            %endif
         }
 
         %if dimension == 2:
@@ -220,7 +219,7 @@ if(
 %endif
 </%def>
 
-<%def name='read_bc_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
+<%def name='read_bc_to_local(var_name, local_mem, default_value, wrap_periodic=False)' buffered='True' filter='trim'>
 ${if_local_idx_in_slice()}{
     for (int row = 0; row < ${slice_loop_length()}; row++) {
         ${define_local_slice_location() | wrap2}
@@ -234,6 +233,29 @@ ${if_local_idx_in_slice()}{
             int temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', '(temp_z + halo)', 'nx_bc', 'ny_bc', 'nz_bc')};
             %endif
             value = ${var_name}[temp_index];
+
+            %if wrap_periodic:
+            //Read the wrapped periodic value...
+            if (value == PERIODIC){
+                if (temp_x < 0) temp_x += nx;
+                if (temp_x >= nx) temp_x -= nx;
+
+                if (temp_y < 0) temp_y += ny;
+                if (temp_y >= ny) temp_y -= ny;
+
+                %if dimension == 3:
+                if (temp_z < 0) temp_z += nz;
+                if (temp_z >= nz) temp_z -= nz;
+                %endif
+
+                %if dimension == 2:
+                temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')};
+                %elif dimension ==3:
+                temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', '(temp_z + halo)', 'nx_bc', 'ny_bc', 'nz_bc')};
+                %endif
+                value = ${var_name}[temp_index];
+            }
+            %endif
         }
         %if dimension == 2:
         ${local_mem}[row*buf_nx + idx_1d] = value;

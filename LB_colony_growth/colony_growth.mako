@@ -218,6 +218,7 @@ else if (streamed_bc == PERIODIC){
     %endif
 }
 %endif
+//TODO: need to implement fixed density!
 else if (streamed_bc < 0){ // You are at a population node
     // Determine Cwall via finite difference...
 
