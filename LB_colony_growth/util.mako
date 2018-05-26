@@ -156,8 +156,9 @@ ${if_local_idx_in_slice()}{
         ${if_local_slice_location_in_bc_map() | wrap2}{
             //If it is, see what value should be on the boundary based on the bc_map.
             const int temp_bc_value = bc_map_local[temp_local_index];
+            %if node_types['WALL_NODE'] in unique_bcs:
             if (temp_bc_value == WALL_NODE) value = 0;
-
+            %elif node_types['PERIODIC'] in unique_bcs:
             else if (temp_bc_value == PERIODIC){
                 if (temp_x < 0) temp_x += nx;
                 if (temp_x >= nx) temp_x -= nx;
@@ -177,6 +178,9 @@ ${if_local_idx_in_slice()}{
                                     'temp_x', 'temp_y', 'temp_z',
                                     'nx', 'ny', 'nz')}];
                 %endif
+            %elif node_types['FIXED_DENSITY'] in unique_bcs:
+            else if (temp_bc_value == FIXED_DENSITY){
+                // Read the fixed density value from the density_bc_map
             }
 
         }
