@@ -135,7 +135,7 @@ buf_nz
 %endif
 </%def>
 
-<%def name='read_to_local(var_name, local_mem, default_value, unique_bcs)' buffered='True' filter='trim'>
+<%def name='read_to_local(var_name, local_mem, default_value, unique_bcs, density_map_name=None)' buffered='True' filter='trim'>
 ### Must be run AFTER the bc_map is read in...
 ${if_local_idx_in_slice()}{
     for (int row = 0; row < ${slice_loop_length()}; row++) {
@@ -156,8 +156,10 @@ ${if_local_idx_in_slice()}{
         ${if_local_slice_location_in_bc_map() | wrap2}{
             //If it is, see what value should be on the boundary based on the bc_map.
             const int temp_bc_value = bc_map_local[temp_local_index];
+
             %if node_types['WALL_NODE'] in unique_bcs:
             if (temp_bc_value == WALL_NODE) value = 0;
+
             %elif node_types['PERIODIC'] in unique_bcs:
             else if (temp_bc_value == PERIODIC){
                 if (temp_x < 0) temp_x += nx;
@@ -178,9 +180,18 @@ ${if_local_idx_in_slice()}{
                                     'temp_x', 'temp_y', 'temp_z',
                                     'nx', 'ny', 'nz')}];
                 %endif
+
             %elif node_types['FIXED_DENSITY'] in unique_bcs:
             else if (temp_bc_value == FIXED_DENSITY){
                 // Read the fixed density value from the density_bc_map
+                %if dimension == 2:
+                int density_map_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')};
+                %elif dimension ==3:
+                int density_map_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', '(temp_z + halo)', 'nx_bc', 'ny_bc', 'nz_bc')};
+                %endif
+                <% assert density_map_name is not None, 'Need to provide input of density map name.' %>
+                value = ${density_map_name}[density_map_index];
+            %endif
             }
 
         }
@@ -220,7 +231,7 @@ ${if_local_idx_in_slice()}{
             %if dimension == 2:
             int temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')};
             %elif dimension ==3:
-            int temp_Index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', '(temp_z + halo)', 'nx_bc', 'ny_bc', 'nz_bc')};
+            int temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', '(temp_z + halo)', 'nx_bc', 'ny_bc', 'nz_bc')};
             %endif
             value = ${var_name}[temp_index];
         }

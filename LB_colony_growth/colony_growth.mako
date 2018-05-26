@@ -3,6 +3,11 @@
     from LB_colony_growth.node_types import node_types
 %>
 
+<%
+    model_specific_args = DLA_colony_specific_args
+    unique_bcs = DLA_colony_specific_args['unique_bcs']
+%>
+
 <%namespace file='util.mako' import='*' name='util' />
 <%namespace file='kernel.mako' import='*' name='kernel' />
 
@@ -16,12 +21,12 @@ ${enable_double_support()}
 % endif
 
 //Define the number of jumpers
-#define num_jumpers ${DLA_colony_specific_args['num_jumpers']}
+#define num_jumpers ${model_specific_args['num_jumpers']}
 
 ${define_node_types()}
 
 // Everything works as long as halo is one...really should be velocity set dependent.
-# define halo  ${DLA_colony_specific_args['halo']}
+# define halo  ${model_specific_args['halo']}
 <%
     assert DLA_colony_specific_args['halo'] == 1, 'Program will not work correctly if halo != 1 currently...choose a different velocity set.'
 %>
@@ -80,7 +85,7 @@ collide_and_propagate(
     barrier(CLK_LOCAL_MEM_FENCE);
     ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN') | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
-    ${read_to_local('rho_global', 'rho_local', 0) | wrap1}
+    ${read_to_local('rho_global', 'rho_local', 0, unique_bcs) | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // Main loop...
@@ -171,7 +176,7 @@ if (streamed_bc == FLUID_NODE){
         'nx', 'ny', 'nz', 'num_jumpers')};
     % endif
 }
-%if node_types['WALL_NODE'] in DLA_colony_specific_args['unique_bcs']:
+%if node_types['WALL_NODE'] in unique_bcs:
 else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bounceback.
     const int reflect_id = reflect_list[jump_id];
     % if dimension == 2:
@@ -183,7 +188,7 @@ else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bouncebac
     streamed_index_global = reflect_index;
 }
 %endif
-%if node_types['PERIODIC'] in DLA_colony_specific_args['unique_bcs']:
+%if node_types['PERIODIC'] in unique_bcs:
 else if (streamed_bc == PERIODIC){
     int new_x = x + cur_cx;
     int new_y = y + cur_cy;
