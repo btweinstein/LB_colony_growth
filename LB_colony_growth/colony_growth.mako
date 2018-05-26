@@ -381,7 +381,7 @@ reproduce(
     // Read concentration and absorbed mass at nodes into memory
 
     barrier(CLK_LOCAL_MEM_FENCE);
-    ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN') | wrap1}
+    ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN', wrap_periodic=True) | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // Main loop...
@@ -459,14 +459,35 @@ if (space_to_reproduce){
     // The final jump_id corresponds to the direction to jump!
     // Same with the current jump directions
 
+    int streamed_x = x + cur_cx;
+    int streamed_y = y + cur_cy;
+    %if dimension == 3:
+    int streamed_z = z + cur_cz;
+    %endif
+
+    %if node_types['PERIODIC'] in unique_bcs:
+    // If the streamed index goes outside the domain, it must have hit
+    // a periodic node. So, loop it!
+    if (streamed_x < 0) temp_x += nx;
+    if (streamed_x >= nx) temp_x -= nx;
+
+    if (streamed_y < 0) temp_y += ny;
+    if (streamed_y >= ny) temp_y -= ny;
+
+    %if dimension == 3:
+    if (streamed_z < 0) temp_z += nz;
+    if (streamed_z >= nz) temp_z -= nz;
+    %endif
+    %endif
+
     % if dimension == 2:
     const int streamed_global_bc_index = ${get_spatial_index(
-        '(x + cur_cx + halo)', '(y + cur_cy + halo)',
+        '(streamed_x + halo)', '(streamed_y + halo)',
         'nx_bc', 'ny_bc'
     )};
     % elif dimension == 3:
     const int streamed_global_bc_index = ${get_spatial_index(
-        '(x + cur_cx + halo)', '(y + cur_cy + halo)', '(z + cur_cz + halo)',
+        '(streamed_x + halo)', '(streamed_y + halo)', '(streamed_z + halo)',
         'nx_bc', 'ny_bc', 'nz_bc'
     )};
     % endif

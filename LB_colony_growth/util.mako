@@ -235,6 +235,7 @@ ${if_local_idx_in_slice()}{
             value = ${var_name}[temp_index];
 
             %if wrap_periodic:
+            ## In practice, this is almost never used. Only used when BC's change in time, i.e. reproducing cells.
             //Read the wrapped periodic value...
             if (value == PERIODIC){
                 if (temp_x < 0) temp_x += nx;
