@@ -468,15 +468,15 @@ if (space_to_reproduce){
     %if node_types['PERIODIC'] in unique_bcs:
     // If the streamed index goes outside the domain, it must have hit
     // a periodic node. So, loop it!
-    if (streamed_x < 0) temp_x += nx;
-    if (streamed_x >= nx) temp_x -= nx;
+    if (streamed_x < 0) streamed_x += nx;
+    if (streamed_x >= nx) streamed_x -= nx;
 
-    if (streamed_y < 0) temp_y += ny;
-    if (streamed_y >= ny) temp_y -= ny;
+    if (streamed_y < 0) streamed_y += ny;
+    if (streamed_y >= ny) streamed_y -= ny;
 
     %if dimension == 3:
-    if (streamed_z < 0) temp_z += nz;
-    if (streamed_z >= nz) temp_z -= nz;
+    if (streamed_z < 0) streamed_z += nz;
+    if (streamed_z >= nz) streamed_z -= nz;
     %endif
     %endif
 
