@@ -84,13 +84,26 @@ const int local_index = ${get_spatial_index('buf_x', 'buf_y', 'buf_z', 'buf_nx',
 ### When looping over rows or 2d slices when reading in local memory, defines where you are
 %if dimension == 2:
 // Read in 1-d slices
-int temp_x = buf_corner_x + idx_1d;
-int temp_y = buf_corner_y + row;
+int temp_buf_x = idx_1d;
+int temp_buf_y = row;
+
+const int temp_local_index = ${get_spatial_index('temp_buf_x', 'temp_buf_y',
+                                                'buf_nx', 'buf_ny')}
+
+int temp_x = buf_corner_x + temp_buf_x;
+int temp_y = buf_corner_y + temp_buf_y;
 %elif dimension == 3:
 // Read in 2-d slices
-int temp_x = buf_corner_x + idx_2d % buf_nx;
-int temp_y = buf_corner_y + idx_2d/buf_nx;
-int temp_z = buf_corner_z + row;
+int temp_buf_x = idx_2d % buf_nx;
+int temp_buf_y = idx_2d/buf_nx;
+int temp_buf_z = buf_corner_z + row;
+
+const int temp_local_index = ${get_spatial_index('temp_buf_x', 'temp_buf_y', 'temp_buf_z',
+                                                'buf_nx', 'buf_ny', 'buf_nz')}
+
+int temp_x = buf_corner_x + cur_buf_x;
+int temp_y = buf_corner_y + cur_buf_y;
+int temp_z = buf_corner_z + cur_buf_z;
 %endif
 </%def>
 
@@ -122,7 +135,8 @@ buf_nz
 %endif
 </%def>
 
-<%def name='read_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
+<%def name='read_to_local(var_name, local_mem, default_value, unique_bcs)' buffered='True' filter='trim'>
+### Must be run AFTER the bc_map is read in...
 ${if_local_idx_in_slice()}{
     for (int row = 0; row < ${slice_loop_length()}; row++) {
         ${define_local_slice_location() | wrap2}
@@ -138,6 +152,35 @@ ${if_local_idx_in_slice()}{
             value = ${var_name}[temp_index];
         }
         % endif
+        // Now check if the location might be in the bc_map...
+        ${if_local_slice_location_in_bc_map() | wrap2}{
+            //If it is, see what value should be on the boundary based on the bc_map.
+            const int temp_bc_value = bc_map_local[temp_local_index];
+            if (temp_bc_value == WALL_NODE) value = 0;
+
+            else if (temp_bc_value == PERIODIC){
+                if (temp_x < 0) temp_x += nx;
+                if (temp_x >= nx) temp_x -= nx;
+
+                if (temp_y < 0) temp_y += ny;
+                if (temp_y >= ny) temp_y -= ny;
+
+                %if dimension == 3:
+                if (temp_z < 0) temp_z += nz;
+                if (temp_z >= nz) temp_z -= nz;
+                %endif
+
+                % if dimension == 2:
+                value = ${var_name}[${get_spatial_index('temp_x', 'temp_y', 'nx', 'ny')}];
+                %elif dimension == 3:
+                value = ${var_name}[${get_spatial_index(
+                                    'temp_x', 'temp_y', 'temp_z',
+                                    'nx', 'ny', 'nz')}];
+                %endif
+            }
+
+        }
+
         %if dimension == 2:
         ${local_mem}[row*buf_nx + idx_1d] = value;
         %elif dimension == 3:

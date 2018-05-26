@@ -78,47 +78,10 @@ collide_and_propagate(
     // Read concentration and absorbed mass at nodes into memory
 
     barrier(CLK_LOCAL_MEM_FENCE);
-    ${read_to_local('rho_global', 'rho_local', 0) | wrap1}
-    barrier(CLK_LOCAL_MEM_FENCE);
     ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN') | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
-
-    // Based on the bc-map, correct the local density buffer
-    ${if_local_idx_in_slice()}{
-        for (int row = 0; row < ${slice_loop_length()}; row++){
-            %if dimension == 2:
-            // Read in 1-d slices
-            int cur_buf_x = idx_1d;
-            int cur_buf_y = row;
-            %elif dimension == 3:
-            // Read in 2-d slices
-            int cur_buf_x = idx_2d % buf_nx;
-            int cur_buf_y = idx_2d/buf_nx;
-            int cur_buf_z = row;
-            %endif
-
-            cur_bc_value = bc_map_local[local_index];
-
-            ${define_local_slice_location() | wrap2}
-
-            ${num_type} value = ${default_value};
-            % if var_name is not None:
-            ${if_local_slice_location_in_domain() | wrap2}{
-                %if dimension == 2:
-                int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'nx', 'ny')};
-                %elif dimension == 3:
-                int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'temp_z', 'nx', 'ny', 'nz')};
-                %endif
-                value = ${var_name}[temp_index];
-            }
-            % endif
-            %if dimension == 2:
-            ${local_mem}[row*buf_nx + idx_1d] = value;
-            %elif dimension == 3:
-            ${local_mem}[row*buf_ny*buf_nx + idx_2d] = value;
-            %endif
-        }
-    }
+    ${read_to_local('rho_global', 'rho_local', 0) | wrap1}
+    barrier(CLK_LOCAL_MEM_FENCE);
 
     // Main loop...
     ${if_thread_in_domain() | wrap1}{
@@ -221,7 +184,7 @@ else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bouncebac
 }
 %endif
 %if node_types['PERIODIC'] in DLA_colony_specific_args['unique_bcs']:
-else if (streamed_bc == PERIODIC){ // Zero concentration on the wall; bounceback.
+else if (streamed_bc == PERIODIC){
     int new_x = x + cur_cx;
     int new_y = y + cur_cy;
     %if dimension ==3:
