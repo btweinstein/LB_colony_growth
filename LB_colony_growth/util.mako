@@ -142,17 +142,8 @@ ${if_local_idx_in_slice()}{
         ${define_local_slice_location() | wrap2}
 
         ${num_type} value = ${default_value};
-        % if var_name is not None:
-        ${if_local_slice_location_in_domain() | wrap2}{
-            %if dimension == 2:
-            int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'nx', 'ny')};
-            %elif dimension == 3:
-            int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'temp_z', 'nx', 'ny', 'nz')};
-            %endif
-            value = ${var_name}[temp_index];
-        }
-        % endif
 
+        % if var_name is not None:
         ${if_local_slice_location_in_bc_map() | wrap2}{
             //If it is, see what value should be on the boundary based on the bc_map.
             const int temp_bc_value = bc_map_local[temp_local_index];
@@ -196,7 +187,17 @@ ${if_local_idx_in_slice()}{
                 value = ${density_map_name}[density_map_index];
             }
             %endif
+
+            else{
+                %if dimension == 2:
+                int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'nx', 'ny')};
+                %elif dimension == 3:
+                int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'temp_z', 'nx', 'ny', 'nz')};
+                %endif
+                value = ${var_name}[temp_index];
+            }
         }
+        % endif
 
         %if dimension == 2:
         ${local_mem}[row*buf_nx + idx_1d] = value;
