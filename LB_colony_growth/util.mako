@@ -151,6 +151,7 @@ ${if_local_idx_in_slice()}{
             ## Always include this check...so the rest of the else if's are ok...
             if (temp_bc_value == WALL_NODE) value = 0;
 
+            // TODO: again, there is a big problem here. The looped BC ASSUMES that the looped value is a fluid node...which is not necessarily true!
             %if node_types['PERIODIC'] in unique_bcs:
             else if (temp_bc_value == PERIODIC){
 
