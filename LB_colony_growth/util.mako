@@ -150,26 +150,7 @@ ${if_local_idx_in_slice()}{
 
             ## Always include this check...so the rest of the else if's are ok...
             if (temp_bc_value == WALL_NODE) value = 0;
-
-            // TODO: again, there is a big problem here. The looped BC ASSUMES that the looped value is a fluid node...which is not necessarily true!
-            %if node_types['PERIODIC'] in unique_bcs:
-            else if (temp_bc_value == PERIODIC){
-
-                %if dimension == 2:
-                wrap_xyz(&temp_x, &temp_y);
-                value = ${var_name}[${get_spatial_index(
-                    'temp_x', 'temp_y',
-                    'nx', 'ny')}];
-
-                %elif dimension == 3:
-                wrap_xyz(&temp_x, &temp_y, &temp_z);
-                value = ${var_name}[${get_spatial_index(
-                    'temp_x', 'temp_y', 'temp_z',
-                    'nx', 'ny', 'nz')}];
-                %endif
-
-            }
-            %endif
+            else if (temp_bc_value < 0) value = 0; // Allele
 
             %if node_types['FIXED_DENSITY'] in unique_bcs:
             else if (temp_bc_value == FIXED_DENSITY){
@@ -185,6 +166,18 @@ ${if_local_idx_in_slice()}{
             %endif
 
             else{
+                // Remember...no periodic values. The bc map reads in the looped values. So, if you are outside the
+                // domain, read a looped value.
+
+                %if node_types['PERIODIC'] in unique_bcs:
+                %if dimension == 2:
+                wrap_xyz(&temp_x, &temp_y);
+                %elif dimension == 3:
+                wrap_xyz(&temp_x, &temp_y, &temp_z);
+                %endif
+
+                %endif
+
                 %if dimension == 2:
                 int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'nx', 'ny')};
                 %elif dimension == 3:
@@ -219,7 +212,7 @@ if(
 %endif
 </%def>
 
-<%def name='read_bc_to_local(var_name, local_mem, default_value, wrap_periodic=False)' buffered='True' filter='trim'>
+<%def name='read_bc_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
 ${if_local_idx_in_slice()}{
     for (int row = 0; row < ${slice_loop_length()}; row++) {
         ${define_local_slice_location() | wrap2}
@@ -234,11 +227,8 @@ ${if_local_idx_in_slice()}{
             %endif
             value = ${var_name}[temp_index];
 
-            %if wrap_periodic:
-            ## In practice, this is almost never used. Only used when BC's change in time, i.e. reproducing cells.
-            //Read the wrapped periodic value...
+            //Read the wrapped periodic value if necessary...
             if (value == PERIODIC){
-
                 %if dimension == 2:
                 wrap_xyz(&temp_x, &temp_y);
                 temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')};
@@ -249,7 +239,6 @@ ${if_local_idx_in_slice()}{
 
                 value = ${var_name}[temp_index];
             }
-            %endif
         }
         %if dimension == 2:
         ${local_mem}[row*buf_nx + idx_1d] = value;
