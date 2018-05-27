@@ -154,24 +154,20 @@ ${if_local_idx_in_slice()}{
 
             %if node_types['PERIODIC'] in unique_bcs:
             else if (temp_bc_value == PERIODIC){
-                if (temp_x < 0) temp_x += nx;
-                if (temp_x >= nx) temp_x -= nx;
 
-                if (temp_y < 0) temp_y += ny;
-                if (temp_y >= ny) temp_y -= ny;
-
-                %if dimension == 3:
-                if (temp_z < 0) temp_z += nz;
-                if (temp_z >= nz) temp_z -= nz;
-                %endif
-
-                % if dimension == 2:
-                value = ${var_name}[${get_spatial_index('temp_x', 'temp_y', 'nx', 'ny')}];
-                %elif dimension == 3:
+                %if dimension == 2:
+                wrap_xyz(&temp_x, &temp_y);
                 value = ${var_name}[${get_spatial_index(
-                                    'temp_x', 'temp_y', 'temp_z',
-                                    'nx', 'ny', 'nz')}];
+                    'temp_x', 'temp_y',
+                    'nx', 'ny')}];
+
+                %elif dimension == 3:
+                wrap_xyz(&temp_x, &temp_y, &temp_z);
+                value = ${var_name}[${get_spatial_index(
+                    'temp_x', 'temp_y', 'temp_z',
+                    'nx', 'ny', 'nz')}];
                 %endif
+
             }
             %endif
 
@@ -242,22 +238,15 @@ ${if_local_idx_in_slice()}{
             ## In practice, this is almost never used. Only used when BC's change in time, i.e. reproducing cells.
             //Read the wrapped periodic value...
             if (value == PERIODIC){
-                if (temp_x < 0) temp_x += nx;
-                if (temp_x >= nx) temp_x -= nx;
-
-                if (temp_y < 0) temp_y += ny;
-                if (temp_y >= ny) temp_y -= ny;
-
-                %if dimension == 3:
-                if (temp_z < 0) temp_z += nz;
-                if (temp_z >= nz) temp_z -= nz;
-                %endif
 
                 %if dimension == 2:
+                wrap_xyz(&temp_x, &temp_y);
                 temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')};
                 %elif dimension ==3:
+                wrap_xyz(&temp_x, &temp_y, &temp_z);
                 temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', '(temp_z + halo)', 'nx_bc', 'ny_bc', 'nz_bc')};
                 %endif
+
                 value = ${var_name}[temp_index];
             }
             %endif
@@ -271,20 +260,6 @@ ${if_local_idx_in_slice()}{
 }
 </%def>
 
-### Code to fix the halo values depending on the BC's.
-
-##         %if periodic_replacement:
-##         // Replace values with periodic analogs...painful
-##         if (value == PERIODIC){
-##             if (temp_x < 0) temp_x += nx;
-##             if (temp_x >= nx) temp_x -= nx;
-##
-##             if (temp_y < 0) temp_y += ny;
-##             if (temp_y >= ny) temp_y -= ny;
-##
-##             temp_index = ${get_spatial_index('(temp_x + halo)', '(temp_y + halo)', 'nx_bc', 'ny_bc')}
-##         }
-##         %endif
 
 ##### Read in current thread info #####
 
@@ -433,4 +408,24 @@ copy_streamed_onto_bc(
     }
 }
 
+</%def>
+
+
+<%def name='define_wrap_xyz_function()' buffered='True' filter='trim'>
+%if dimension ==2:
+void wrap_xyz(int *x, int *y){
+%elif dimension == 3:
+void wrap_xyz(int *x, int *y, int *z){
+%endif
+    if (*x < 0) *x += nx;
+    if (*x >= nx) *x -= nx;
+
+    if (*y < 0) *y += ny;
+    if (*y >= ny) *y -= ny;
+
+    %if dimension == 3:
+    if (*z < 0) *z+ = nz;
+    if (*z >= nz) *z -= nz;
+    %endif
+}
 </%def>

@@ -42,6 +42,11 @@ __constant int cy_nearest[6] = {0,  0, 1,-1, 0, 0};
 __constant int cz_nearest[6] = {0,  0, 0, 0, 1,-1};
 %endif
 
+%if node_types['PERIODIC'] in unique_bcs:
+//As periodic domains are present, we node code to wrap spatial indices.
+${define_wrap_xyz_function()}
+%endif
+
 //######### Collide & Propagate kernel ########
 
 ${set_current_kernel('collide_and_propagate')}
@@ -176,6 +181,7 @@ if (streamed_bc == FLUID_NODE){
         'nx', 'ny', 'nz', 'num_jumpers')};
     % endif
 }
+
 %if node_types['WALL_NODE'] in unique_bcs:
 else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bounceback.
     const int reflect_id = reflect_list[jump_id];
@@ -188,6 +194,7 @@ else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bouncebac
     streamed_index_global = reflect_index;
 }
 %endif
+
 %if node_types['PERIODIC'] in unique_bcs:
 else if (streamed_bc == PERIODIC){
     int new_x = x + cur_cx;
@@ -196,28 +203,22 @@ else if (streamed_bc == PERIODIC){
     int new_z = z + cur_cz;
     %endif
 
-    if (new_x < 0) new_x += nx;
-    if (new_x >= nx) new_x -= nx;
-
-    if (new_y < 0) new_y += ny;
-    if (new_y >= ny) new_y -= ny;
-
-    %if dimension == 3:
-    if (new_z < 0) new_z += nz;
-    if (new_z >= nz) new_z -= nz;
-    %endif
-
-    % if dimension == 2:
+    %if dimension == 2:
+    wrap_xyz(&new_x, &new_y);
     streamed_index_global = ${get_spatial_index(
-    'new_x', 'new_y', 'jump_id',
-    'nx', 'ny', 'num_jumpers')};
+        'new_x', 'new_y', 'jump_id',
+        'nx', 'ny', 'num_jumpers')};
+
     %elif dimension == 3:
+    wrap_xyz(&new_x, &new_y, &new_z);
     streamed_index_global = ${get_spatial_index(
-    'new_x', 'new_y', 'new_z', 'jump_id',
-    'nx', 'ny', 'nz', 'num_jumpers')};
+        'new_x', 'new_y', 'new_z', 'jump_id',
+        'nx', 'ny', 'nz', 'num_jumpers')};
+
     %endif
 }
 %endif
+
 //TODO: need to implement fixed density!
 else if (streamed_bc < 0){ // You are at a population node
     // Determine Cwall via finite difference...
@@ -466,18 +467,15 @@ if (space_to_reproduce){
     %endif
 
     %if node_types['PERIODIC'] in unique_bcs:
+
     // If the streamed index goes outside the domain, it must have hit
     // a periodic node. So, loop it!
-    if (streamed_x < 0) streamed_x += nx;
-    if (streamed_x >= nx) streamed_x -= nx;
-
-    if (streamed_y < 0) streamed_y += ny;
-    if (streamed_y >= ny) streamed_y -= ny;
-
-    %if dimension == 3:
-    if (streamed_z < 0) streamed_z += nz;
-    if (streamed_z >= nz) streamed_z -= nz;
+    %if dimension == 2:
+    wrap_xyz(&streamed_x, &streamed_y);
+    %elif dimension == 3:
+    wrap_xyz(&streamed_x, &streamed_y, &streamed_z);
     %endif
+
     %endif
 
     % if dimension == 2:
