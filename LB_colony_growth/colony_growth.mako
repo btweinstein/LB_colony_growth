@@ -170,20 +170,36 @@ ${num_type} new_f = f_after_collision;
 
 if (streamed_bc == FLUID_NODE){
     // Propagate the collided particle distribution as appropriate
+    int streamed_x = x + cur_cx;
+    int streamed_y = y + cur_cy;
+    %if dimension == 3:
+    int streamed_z = z + cur_cz;
+    %endif
+
+    %if node_types['PERIODIC'] in unique_bcs:
+
+    %if dimension == 2:
+    wrap_xyz(streamed_x, streamed_y);
+    %elif dimension == 3:
+    wrap_xyz(streamed_x, streamed_y, streamed_z);
+    %endif
+
+    %endif
+
     % if dimension == 2:
     streamed_index_global = ${get_spatial_index(
-        '(x + cur_cx)', '(y + cur_cy)', 'jump_id',
+        'streamed_x', 'streamed_y', 'jump_id',
         'nx', 'ny', 'num_jumpers'
     )};
     % elif dimension == 3:
     streamed_index_global = ${get_spatial_index(
-        '(x + cur_cx)', '(y + cur_cy)', '(z+cur_cz)', 'jump_id',
+        'streamed_x', 'streamed_y', 'streamed_z', 'jump_id',
         'nx', 'ny', 'nz', 'num_jumpers')};
     % endif
 }
 
 %if node_types['WALL_NODE'] in unique_bcs:
-else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bounceback.
+else if (streamed_bc == WALL_NODE){ // Zero flux into the wall; bounceback.
     const int reflect_id = reflect_list[jump_id];
     % if dimension == 2:
     const int reflect_index = spatial_index + nx*ny*reflect_id;
@@ -195,32 +211,10 @@ else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bouncebac
 }
 %endif
 
-%if node_types['PERIODIC'] in unique_bcs:
-else if (streamed_bc == PERIODIC){
-    //TODO: THIS IS INCORRECT! THIS ASSUMES THAT THE PERIODICALLY LOOPED BC IS A FLUID NODE...WHICH IS NOT NECESSARILY CORRECT. FUCK. LOL.
-    int new_x = x + cur_cx;
-    int new_y = y + cur_cy;
-    %if dimension ==3:
-    int new_z = z + cur_cz;
-    %endif
-
-    %if dimension == 2:
-    wrap_xyz(&new_x, &new_y);
-    streamed_index_global = ${get_spatial_index(
-        'new_x', 'new_y', 'jump_id',
-        'nx', 'ny', 'num_jumpers')};
-
-    %elif dimension == 3:
-    wrap_xyz(&new_x, &new_y, &new_z);
-    streamed_index_global = ${get_spatial_index(
-        'new_x', 'new_y', 'new_z', 'jump_id',
-        'nx', 'ny', 'nz', 'num_jumpers')};
-
-    %endif
-}
+%if node_types['FIXED_DENSITY'] in unique_bcs:
+//TODO: need to implement fixed density!
 %endif
 
-//TODO: need to implement fixed density!
 else if (streamed_bc < 0){ // You are at a population node
     // Determine Cwall via finite difference...
 
