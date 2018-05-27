@@ -179,9 +179,9 @@ if (streamed_bc == FLUID_NODE){
     %if node_types['PERIODIC'] in unique_bcs:
 
     %if dimension == 2:
-    wrap_xyz(streamed_x, streamed_y);
+    wrap_xyz(&streamed_x, &streamed_y);
     %elif dimension == 3:
-    wrap_xyz(streamed_x, streamed_y, streamed_z);
+    wrap_xyz(&streamed_x, &streamed_y, &streamed_z);
     %endif
 
     %endif
