@@ -148,9 +148,8 @@ ${if_local_idx_in_slice()}{
             //If it is, see what value should be on the boundary based on the bc_map.
             const int temp_bc_value = bc_map_local[temp_local_index];
 
-            %if node_types['WALL_NODE'] in unique_bcs:
+            ## Always include this check...so the rest of the else if's are ok...
             if (temp_bc_value == WALL_NODE) value = 0;
-            %endif
 
             %if node_types['PERIODIC'] in unique_bcs:
             else if (temp_bc_value == PERIODIC){
