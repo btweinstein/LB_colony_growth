@@ -197,6 +197,7 @@ else if (streamed_bc == WALL_NODE){ // Zero concentration on the wall; bouncebac
 
 %if node_types['PERIODIC'] in unique_bcs:
 else if (streamed_bc == PERIODIC){
+    //TODO: THIS IS INCORRECT! THIS ASSUMES THAT THE PERIODICALLY LOOPED BC IS A FLUID NODE...WHICH IS NOT NECESSARILY CORRECT. FUCK. LOL. 
     int new_x = x + cur_cx;
     int new_y = y + cur_cy;
     %if dimension ==3:
