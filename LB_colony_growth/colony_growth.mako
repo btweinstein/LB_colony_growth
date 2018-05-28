@@ -104,7 +104,7 @@ collide_and_propagate(
 
                 ${collide_bgk() | wrap4}
 
-                ${move() | wrap4}
+                ${move_and_apply_BCs() | wrap4}
             }
         }
         else if (node_type < 0){ // Population node!
@@ -157,7 +157,7 @@ ${num_type} f_after_collision = f_global[jump_index]*(1-omega) + omega*feq_globa
 //TODO: If a source is needed, additional terms are needed here.
 </%def>
 
-<%def name='move()' buffered='True' filter='trim'>
+<%def name='move_and_apply_BCs()' buffered='True' filter='trim'>
 // After colliding, stream to the appropriate location.
 ${define_all_c()}
 
