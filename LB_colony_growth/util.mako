@@ -384,8 +384,8 @@ copy_streamed_onto_f(
 <%def name='needs_copy_streamed_onto_bc_kernel()' filter='trim'>
 
 ${set_current_kernel('copy_streamed_onto_bc')}
-${needs_bc_map('__write_only')}
-${needs_bc_map_streamed('__read_only')}
+${needs_bc_map()}
+${needs_bc_map_streamed()}
 
 __kernel void
 copy_streamed_onto_bc(
