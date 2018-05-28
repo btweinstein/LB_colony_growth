@@ -4,7 +4,7 @@
 %>
 
 <%
-    model_specific_args = DLA_colony_specific_args
+    model_specific_args = fluid_specific_args
     unique_bcs = model_specific_args['unique_bcs']
 %>
 
@@ -25,22 +25,7 @@ ${enable_double_support()}
 
 ${define_node_types()}
 
-// Everything works as long as halo is one...really should be velocity set dependent.
 # define halo  ${model_specific_args['halo']}
-<%
-    assert DLA_colony_specific_args['halo'] == 1, 'Program will not work correctly if halo != 1 currently...choose a different velocity set.'
-%>
-
-%if dimension==2:
-#define NUM_NEAREST_NEIGHBORS 4
-__constant int cx_nearest[4] = {1, -1, 0, 0};
-__constant int cy_nearest[4] = {0,  0, 1,-1};
-%elif dimension == 3:
-#define NUM_NEAREST_NEIGHBORS 6
-__constant int cx_nearest[6] = {1, -1, 0, 0, 0, 0};
-__constant int cy_nearest[6] = {0,  0, 1,-1, 0, 0};
-__constant int cz_nearest[6] = {0,  0, 0, 0, 1,-1};
-%endif
 
 %if node_types['PERIODIC'] in unique_bcs:
 //As periodic domains are present, we node code to wrap spatial indices.
@@ -63,10 +48,6 @@ ${needs_absorbed_mass()}
 ${needs_local_mem_num('rho_local')}
 ${needs_local_mem_int('bc_map_local')}
 ${needs_local_buf_size()}
-
-## Specific parameter choices
-${needs_k_list()}
-${needs_D()}
 
 ## Lattice velocity choices
 ${needs_omega()}
@@ -107,50 +88,8 @@ collide_and_propagate(
                 ${move_and_apply_BCs() | wrap4}
             }
         }
-        else if (node_type < 0){ // Population node!
-            ${absorb_mass() | wrap3}
-        }
     }
 }
-
-<%def name='absorb_mass()' buffered='True' filter='trim'>
-// Loop over nearest neighbors
-
-${num_type} mass_to_add = 0;
-for(int i=0; i < NUM_NEAREST_NEIGHBORS; i++){
-    const int cur_cx = cx_nearest[i];
-    const int cur_cy = cy_nearest[i];
-    %if dimension == 3:
-    const int cur_cz = cz_nearest[i];
-    %endif
-
-    // Figure out what type of node the steamed position is
-    ${define_streamed_index_local()}
-
-    const int streamed_bc = bc_map_local[streamed_index_local];
-
-    if (streamed_bc == FLUID_NODE){ // Scalar can diffuse in
-        // Alleles are negative...need to convert to an index
-        //node_type: the allele present in this cell
-
-        const int allele_index = -1*node_type - 1;
-
-        const ${num_type} cur_k = k[allele_index];
-
-        // Determine Cwall via finite difference
-        const ${num_type} neighbor_rho = rho_local[streamed_index_local];
-
-        const ${num_type} cur_c_mag = 1.0; // Magnitude to nearest neighbors is always one
-        const ${num_type} rho_wall = neighbor_rho/(1 + (cur_k*cur_c_mag)/(2*D));
-
-        //Update the mass at the site accordingly
-        // Flux in is k*rho_wall...and in lattice units, all additional factors are one.
-        mass_to_add += cur_k*rho_wall;
-    }
-}
-absorbed_mass_global[spatial_index] += mass_to_add;
-
-</%def>
 
 <%def name='collide_bgk()' buffered='True' filter='trim'>
 ${num_type} f_after_collision = f_global[jump_index]*(1-omega) + omega*feq_global[jump_index];
@@ -198,8 +137,7 @@ if (streamed_bc == FLUID_NODE){
     % endif
 }
 
-%if node_types['WALL_NODE'] in unique_bcs:
-else if (streamed_bc == WALL_NODE){ // Zero flux into the wall; bounceback.
+else if ((streamed_bc == WALL_NODE) || (streamed_bc <0)){ // Bounceback at alleles or walls
     const int reflect_id = reflect_list[jump_id];
     % if dimension == 2:
     const int reflect_index = spatial_index + nx*ny*reflect_id;
@@ -209,41 +147,11 @@ else if (streamed_bc == WALL_NODE){ // Zero flux into the wall; bounceback.
 
     streamed_index_global = reflect_index;
 }
-%endif
 
 %if node_types['FIXED_DENSITY'] in unique_bcs:
 //TODO: need to implement fixed density!
 %endif
 
-else if (streamed_bc < 0){ // You are at a population node
-    // Determine Cwall via finite difference...
-
-    // Alleles are negative...need to convert to an index
-    const int allele_index = -1*streamed_bc - 1;
-
-    const ${num_type} cur_k = k[allele_index];
-
-    ${num_type} cur_rho = rho_local[local_index];
-    ${num_type} cur_c_mag = c_mag[jump_id];
-    ${num_type} rho_wall = cur_rho/(1 + (cur_k*cur_c_mag)/(2*D));
-
-    // Based on rho_wall, do the bounceback
-    ${num_type} cur_w = w[jump_id];
-    int reflect_id = reflect_list[jump_id];
-    % if dimension == 2:
-    int reflect_index = spatial_index + nx*ny*reflect_id;
-    % elif dimension == 3:
-    int reflect_index = spatial_index + nx*ny*nz*reflect_id;
-    % endif
-
-    streamed_index_global = reflect_index;
-    new_f = -f_after_collision + 2*cur_w*rho_wall;
-}
-/*
-else if (streamed_bc == NOT_IN_DOMAIN){
-    printf("There is something wrong with the BC-map! I'm streaming to a not-defined region...\n");
-}
-*/
 //Need to write to the streamed buffer...otherwise out of sync problems will occur
 
 f_streamed_global[streamed_index_global] = new_f;
