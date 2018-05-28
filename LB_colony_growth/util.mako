@@ -101,9 +101,9 @@ int temp_buf_z = buf_corner_z + row;
 const int temp_local_index = ${get_spatial_index('temp_buf_x', 'temp_buf_y', 'temp_buf_z',
                                                 'buf_nx', 'buf_ny', 'buf_nz')};
 
-int temp_x = buf_corner_x + cur_buf_x;
-int temp_y = buf_corner_y + cur_buf_y;
-int temp_z = buf_corner_z + cur_buf_z;
+int temp_x = buf_corner_x + temp_buf_x;
+int temp_y = buf_corner_y + temp_buf_y;
+int temp_z = buf_corner_z + temp_buf_z;
 %endif
 </%def>
 
@@ -227,6 +227,7 @@ ${if_local_idx_in_slice()}{
             %endif
             value = ${var_name}[temp_index];
 
+            %if node_types['PERIODIC'] in unique_bcs:
             //Read the wrapped periodic value if necessary...
             if (value == PERIODIC){
                 %if dimension == 2:
@@ -239,6 +240,7 @@ ${if_local_idx_in_slice()}{
 
                 value = ${var_name}[temp_index];
             }
+            %endif
         }
         %if dimension == 2:
         ${local_mem}[row*buf_nx + idx_1d] = value;
