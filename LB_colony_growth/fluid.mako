@@ -152,6 +152,10 @@ else if ((streamed_bc == WALL_NODE) || (streamed_bc <0)){ // Bounceback at allel
 //TODO: need to implement fixed density!
 %endif
 
+%if node_types['SLIP_VELOCITY'] in unique_bcs:
+//TODO: need to implement slip velocity!
+%endif
+
 //Need to write to the streamed buffer...otherwise out of sync problems will occur
 
 f_streamed_global[streamed_index_global] = new_f;
@@ -204,8 +208,7 @@ if (node_type < 0) new_rho = 0; // No density if in an allele
 if (node_type == WALL_NODE) new_rho = 0;
 %endif
 %if node_types['FIXED_DENSITY'] in unique_bcs:
-//TODO: need to write this
-if (node_type == FIXED_DENSITY) new_rho = SPAGHETTI;
+//TODO: need to write the fixed density condtion
 %endif
 
 rho_global[spatial_index] = new_rho;
