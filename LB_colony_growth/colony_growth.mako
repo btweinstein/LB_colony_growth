@@ -289,7 +289,16 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
     new_rho += f_global[jump_index];
 }
 
-if (node_type != FLUID_NODE) new_rho = 0; // No density if not in the fluid
+if (node_type < 0) new_rho = 0; // No density if in an allele
+
+%if node_types['WALL'] in unique_bcs:
+else if (node_type == WALL_NODE) new_rho = 0;
+%endif
+%if node_types['FIXED_DENSITY'] in unique_bcs:
+//TODO: need to write this
+else if (node_type == FIXED_DENSITY) new_rho = SPAGHETTI;
+%endif
+
 rho_global[spatial_index] = new_rho;
 </%def>
 
