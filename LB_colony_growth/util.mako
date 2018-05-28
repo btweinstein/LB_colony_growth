@@ -212,7 +212,7 @@ if(
 %endif
 </%def>
 
-<%def name='read_bc_to_local(var_name, local_mem, default_value)' buffered='True' filter='trim'>
+<%def name='read_bc_to_local(var_name, local_mem, default_value, unique_bcs)' buffered='True' filter='trim'>
 ${if_local_idx_in_slice()}{
     for (int row = 0; row < ${slice_loop_length()}; row++) {
         ${define_local_slice_location() | wrap2}

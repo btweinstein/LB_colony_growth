@@ -88,7 +88,7 @@ collide_and_propagate(
     // Read concentration and absorbed mass at nodes into memory
 
     barrier(CLK_LOCAL_MEM_FENCE);
-    ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN') | wrap1}
+    ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN', unique_bcs) | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
     ${read_to_local('rho_global', 'rho_local', 0, unique_bcs) | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -387,7 +387,7 @@ reproduce(
     // Read concentration and absorbed mass at nodes into memory
 
     barrier(CLK_LOCAL_MEM_FENCE);
-    ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN') | wrap1}
+    ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN', unique_bcs) | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // Main loop...
