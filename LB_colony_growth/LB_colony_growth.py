@@ -6,7 +6,6 @@ import pyopencl.tools
 import pyopencl.clrandom
 import pyopencl.array
 import ctypes as ct
-import matplotlib.pyplot as plt
 
 import mako as m
 import mako.template as mte

@@ -8,11 +8,11 @@ setup(
     version='0.1',
     packages=['LB_colony_growth'],
     include_package_data=True,
-    url='',
+    url='https://github.com/btweinstein/LB_colony_growth',
     license='',
     author='Bryan Weinstein',
     author_email='btweinstein@gmail.com',
-    description='',
+    description='Growing DLA colonies on a lattice with coupling to a Lattice-Boltzmann based nutrient field.',
     include_dirs = [np.get_include()],
-    requires=['pyopencl', 'numpy']
+    install_requires=['pyopencl', 'numpy', 'mayavi', 'mako']
 )
