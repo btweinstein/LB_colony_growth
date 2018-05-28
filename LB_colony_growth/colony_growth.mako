@@ -291,12 +291,13 @@ for(int jump_id=0; jump_id < num_jumpers; jump_id++){
 
 if (node_type < 0) new_rho = 0; // No density if in an allele
 
-%if node_types['WALL'] in unique_bcs:
-else if (node_type == WALL_NODE) new_rho = 0;
+%if node_types['WALL_NODE'] in unique_bcs:
+## It's not clear why, but using *else if* causes the code to NOT be vectorized...
+if (node_type == WALL_NODE) new_rho = 0;
 %endif
 %if node_types['FIXED_DENSITY'] in unique_bcs:
 //TODO: need to write this
-else if (node_type == FIXED_DENSITY) new_rho = SPAGHETTI;
+if (node_type == FIXED_DENSITY) new_rho = SPAGHETTI;
 %endif
 
 rho_global[spatial_index] = new_rho;
