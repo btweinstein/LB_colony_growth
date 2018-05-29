@@ -96,7 +96,7 @@ int temp_y = buf_corner_y + temp_buf_y;
 // Read in 2-d slices
 int temp_buf_x = idx_2d % buf_nx;
 int temp_buf_y = idx_2d/buf_nx;
-int temp_buf_z = buf_corner_z + row;
+int temp_buf_z = row;
 
 const int temp_local_index = ${get_spatial_index('temp_buf_x', 'temp_buf_y', 'temp_buf_z',
                                                 'buf_nx', 'buf_ny', 'buf_nz')};
