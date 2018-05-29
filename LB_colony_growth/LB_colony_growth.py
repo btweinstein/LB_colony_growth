@@ -400,13 +400,20 @@ class DLA_Colony(object):
 
         idata = tvtk.ImageData(spacing=(1, 1, 1), origin=(0, 0, 0))
 
+
         # Population
         pops = self.get_pop_field().astype(self.num_type)
+        if self.dimension == 2:
+            pops = pops[:, :, np.newaxis]
+
         idata.cell_data.scalars = pops.ravel(order='F')
         idata.cell_data.scalars.name = 'population'
 
         # Density
         rho = self.rho.get()
+        if self.dimension == 2:
+            rho = rho[:, :, np.newaxis]
+
         t = idata.cell_data.add_array(rho.ravel(order='F'))
         idata.cell_data.get_array(t).name = 'rho'
 
