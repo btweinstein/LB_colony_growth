@@ -348,26 +348,130 @@ init_feq(
 }
 
 
+//######### Choose a random direction to reproduce ########
+
+${set_current_kernel('choose_reproduction_direction')}
+${needs_bc_map()}
+${needs_absorbed_mass()}
+## Velocity set info
+${needs_w()}
+${needs_c_vec()}
+
+## Pointer that determines whether everyone is done reproducing.
+## No need to make a mako func for this...it's a one-off thing.
+<%
+    k = kernel_arguments['current_kernel_list']
+    k.append(['rand_for_direction', '__global '+num_type+' *rand'])
+    k.append(['can_reproduce_pointer', '__global int *can_reproduce_global'])
+    k.append(['reproduction_direction', '__global int *reproduction_direction'])
+%>
+
+__kernel void
+choose_reproduction_direction(
+    ${print_kernel_args()}
+)
+{
+    // Get info about where thread is located in global memory
+    ${define_thread_location() | wrap1}
+    // We need local memory, notably the BC-map.
+
+    // We need local memory...define necessary variables.
+    ${define_local_variables() | wrap1}
+    // Read concentration and absorbed mass at nodes into memory
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+    ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN', unique_bcs) | wrap1}
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    // Main loop...
+    ${if_thread_in_domain() | wrap1}{
+        const int node_type = bc_map_local[local_index];
+
+        if (node_type < 0){ // Population node!
+            //Check if you have accumulated enough mass
+
+            // Alleles are negative...need to convert to an index
+            const int allele_index = -1*node_type - 1;
+
+            const ${num_type} cur_m_reproduce = m_reproduce[allele_index];
+
+            ${num_type} current_mass = absorbed_mass_global[spatial_index];
+            if (current_mass > cur_m_reproduce){ // Choose a reproduction direction
+                ${choose_reproduction_direction() | wrap4}
+            }
+        }
+    }
+}
+
+<%def name='choose_reproduction_direction()' buffered='True' filter='trim'>
+// Calculate the normalization constant
+${num_type} norm_constant = 0;
+
+bool space_to_reproduce = false;
+
+//Determine if you can reproduce...need enough space, mass is already checked.
+for(int jump_id=0; jump_id < num_jumpers; jump_id++){
+    ${define_all_c() | wrap1}
+
+    ${define_streamed_index_local() | wrap1}
+
+    const int streamed_node_type = bc_map_local[streamed_index_local];
+
+    if (streamed_node_type == FLUID_NODE){ // Population can expand into this!
+        norm_constant += w[jump_id];
+        space_to_reproduce = true;
+        can_reproduce_global[0] = 1; // Flag that indicates if someone, somewhere *can* reproduce
+    }
+}
+
+if (space_to_reproduce){
+
+    const ${num_type} rand_num = rand_global[spatial_index];
+
+    bool has_chosen_direction = false;
+
+    int cur_cx = 0;
+    int cur_cy = 0;
+    %if dimension == 3:
+    int cur_cz = 0;
+    %endif
+
+    int jump_id = -1;
+
+    ${num_type} prob_total = 0;
+    while((jump_id < num_jumpers) && (!has_chosen_direction)){
+        jump_id += 1;
+
+        ## Use the c's defined outside the loop
+        ${define_all_c(identifier='') | wrap2}
+        ${define_streamed_index_local() | wrap2}
+
+        const int streamed_node_type = bc_map_local[streamed_index_local];
+        if (streamed_node_type == FLUID_NODE){ // Population can expand into this!
+            prob_total += w[jump_id]/norm_constant;
+            if (prob_total > rand_num){
+                has_chosen_direction = true;
+            }
+        }
+    }
+    reproduction_direction[spatial-index] = jump_id;
+}
+</%def>
+
+
 //######### Reproduce cells kernel #########
 ${set_current_kernel('reproduce')}
 
 ${needs_bc_map()}
 ${needs_bc_map_streamed()}
 ${needs_absorbed_mass()}
-${needs_rand()}
-
-## Pointer that determines whether everyone is done reproducing.
-## No need to make a mako func for this...it's a one-off thing.
-<%
-    k = kernel_arguments['current_kernel_list']
-    k.append(['can_reproduce_pointer', '__global int *can_reproduce_global'])
-%>
 ## Input parameters
 ${needs_m_reproduce_list()}
-
 ## Velocity set info
 ${needs_w()}
 ${needs_c_vec()}
+
+
 
 ## Local memory info
 ${needs_local_mem_int('bc_map_local')}

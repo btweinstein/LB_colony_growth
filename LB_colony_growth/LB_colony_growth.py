@@ -235,12 +235,16 @@ class DLA_Colony(object):
         self.random_generator = cl.clrandom.PhiloxGenerator(self.context)
         # Draw random normals for each population
         random_host = np.ones(self.get_dimension_tuple(), dtype=num_type, order='F')
-        self.rand_array = cl.array.to_device(self.queue, random_host)
+        self.rand_for_direction = cl.array.to_device(self.queue, random_host)
+        self.rand_for_reproduction = self.rand_for_direction.copy()
 
-        self.random_generator.fill_uniform(self.rand_array, queue=self.queue)
-        self.rand_array.finish()
+        self.random_generator.fill_uniform(self.rand_for_direction, queue=self.queue)
+        self.random_generator.fill_uniform(self.rand_for_reproduction, queue=self.queue)
+        self.rand_for_direction.finish()
+        self.rand_for_reproduction.finish()
 
-        self.kernel_args['rand'] = self.rand_array.data
+        self.kernel_args['rand_for_direction'] = self.rand_for_direction.data
+        self.kernel_args['rand_for_reproduction'] = self.rand_for_reproduction.data
 
         # Create global memory required for reproduction
         # It's faster to just work with opencl buffers directly in this case.
@@ -276,8 +280,8 @@ class DLA_Colony(object):
             num_times = 0
             while (self.can_reproduce_host[0] == 1):
                 # Generate new random numbers
-                self.random_generator.fill_uniform(self.rand_array, queue=self.queue)
-                self.rand_array.finish()
+                self.random_generator.fill_uniform(self.rand_for_direction, queue=self.queue)
+                self.rand_for_direction.finish()
 
                 # Attempt to reproduce; the kernel will reset the flag if anyone can reproduce
                 self.can_reproduce_host[0] = int_type(0)
