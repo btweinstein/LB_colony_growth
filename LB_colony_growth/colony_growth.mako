@@ -353,9 +353,14 @@ init_feq(
 ${set_current_kernel('choose_reproduction_direction')}
 ${needs_bc_map()}
 ${needs_absorbed_mass()}
+
 ## Velocity set info
 ${needs_w()}
 ${needs_c_vec()}
+
+## Local memory info
+${needs_local_mem_int('bc_map_local')}
+${needs_local_buf_size()}
 
 ## Pointer that determines whether everyone is done reproducing.
 ## No need to make a mako func for this...it's a one-off thing.
@@ -387,6 +392,8 @@ choose_reproduction_direction(
     ${if_thread_in_domain() | wrap1}{
         const int node_type = bc_map_local[local_index];
 
+        int final_jump_direction = -1; // If not updated, you do no jumping.
+
         if (node_type < 0){ // Population node!
             //Check if you have accumulated enough mass
 
@@ -400,6 +407,8 @@ choose_reproduction_direction(
                 ${choose_reproduction_direction() | wrap4}
             }
         }
+
+        reproduction_direction[spatial_index] = final_jump_direction;
     }
 }
 
@@ -454,7 +463,7 @@ if (space_to_reproduce){
             }
         }
     }
-    reproduction_direction[spatial-index] = jump_id;
+    final_jump_direction = jump_id;
 }
 </%def>
 
