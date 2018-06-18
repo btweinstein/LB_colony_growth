@@ -480,6 +480,12 @@ ${needs_m_reproduce_list()}
 ${needs_w()}
 ${needs_c_vec()}
 
+<%
+    k = kernel_arguments['current_kernel_list']
+    k.append(['rand_for_reproduction', '__global '+num_type+' *rand'])
+    k.append(['reproduction_direction', '__global int *reproduction_direction'])
+%>
+
 
 
 ## Local memory info
@@ -502,6 +508,46 @@ reproduce(
     barrier(CLK_LOCAL_MEM_FENCE);
     ${read_bc_to_local('bc_map_global', 'bc_map_local', 'NOT_IN_DOMAIN', unique_bcs) | wrap1}
     barrier(CLK_LOCAL_MEM_FENCE);
+    // Read in jump direction...loop periodically if appropriate.
+    ${if_local_idx_in_slice()}{ // TODO: do this in a function, somehow related to read_to_local
+    for (int row = 0; row < ${slice_loop_length()}; row++) {
+        ${define_local_slice_location() | wrap2}
+
+        int value = -1; // You only read in the value if the node is a population one, or PERIODIC.
+
+
+        ${if_local_slice_location_in_bc_map() | wrap2}{
+            //If it is, see what value should be on the boundary based on the bc_map.
+            const int temp_bc_value = bc_map_local[temp_local_index];
+
+            %if node_types['PERIODIC'] in unique_bcs:
+            if (temp_bc_value == PERIODIC){
+                %if dimension == 2:
+                wrap_xyz(&temp_x, &temp_y);
+                %elif dimension == 3:
+                wrap_xyz(&temp_x, &temp_y, &temp_z);
+                %endif
+            }
+            %endif
+
+            %if dimension == 2:
+            int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'nx', 'ny')};
+            %elif dimension == 3:
+            int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'temp_z', 'nx', 'ny', 'nz')};
+            %endif
+            value = reproduction_direction[temp_index];
+        }
+        }
+
+        %if dimension == 2:
+        ${local_mem}[row*buf_nx + idx_1d] = value;
+        %elif dimension == 3:
+        ${local_mem}[row*buf_ny*buf_nx + idx_2d] = value;
+        %endif
+    }
+}
+    barrier(CLK_LOCAL_MEM_FENCE);
+
 
     // Main loop...
     ${if_thread_in_domain() | wrap1}{

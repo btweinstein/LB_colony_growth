@@ -165,7 +165,7 @@ ${if_local_idx_in_slice()}{
             }
             %endif
 
-            else{
+            else{ //TODO: I hate the way periodic BC's are done right now. There should be a similar if statement to the above...
                 // Remember...no periodic values. The bc map reads in the looped values. So, if you are outside the
                 // domain, read a looped value.
 
