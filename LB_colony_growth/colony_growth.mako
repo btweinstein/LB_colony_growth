@@ -515,7 +515,6 @@ reproduce(
 
         int value = -1; // You only read in the value if the node is a population one, or PERIODIC.
 
-
         ${if_local_slice_location_in_bc_map() | wrap2}{
             //If it is, see what value should be on the boundary based on the bc_map.
             const int temp_bc_value = bc_map_local[temp_local_index];
@@ -529,14 +528,15 @@ reproduce(
                 %endif
             }
             %endif
-
-            %if dimension == 2:
-            int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'nx', 'ny')};
-            %elif dimension == 3:
-            int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'temp_z', 'nx', 'ny', 'nz')};
-            %endif
-            value = reproduction_direction[temp_index];
-        }
+            // Else, if you are in the domain, read from the jump_direction array...
+            ${if_thread_in_domain(x='temp_x', y='temp_y', z='temp_z') | wrap3}{
+                %if dimension == 2:
+                int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'nx', 'ny')};
+                %elif dimension == 3:
+                int temp_index = ${get_spatial_index('temp_x', 'temp_y', 'temp_z', 'nx', 'ny', 'nz')};
+                %endif
+                value = reproduction_direction[temp_index];
+            }
         }
 
         %if dimension == 2:

@@ -267,11 +267,11 @@ const int spatial_index = ${get_spatial_index('x', 'y', 'z', 'nx', 'ny', 'nz')};
 </%def>
 
 ### Determine if thread is in domain
-<%def name='if_thread_in_domain()', buffered='True', filter='trim'>
+<%def name="if_thread_in_domain(x='x', y='y', z='z')", buffered='True', filter='trim'>
     % if dimension == 2:
-    if ((x < nx) && (y < ny))
+    if ((${x} < nx) && (${y} < ny))
     % elif dimension == 3:
-    if ((x < nx) && (y < ny) && (z < nz))
+    if ((${x} < nx) && (${y} < ny) && (${z} < nz))
     % endif
 </%def>
 
