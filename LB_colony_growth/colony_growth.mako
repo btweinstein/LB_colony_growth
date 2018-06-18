@@ -473,12 +473,10 @@ ${set_current_kernel('reproduce')}
 
 ${needs_bc_map()}
 
-${needs_absorbed_mass()}
-## Input parameters
-${needs_m_reproduce_list()}
 ## Velocity set info
 ${needs_w()}
 ${needs_c_vec()}
+${needs_reflect_list}
 
 <%
     k = kernel_arguments['current_kernel_list']
@@ -552,7 +550,6 @@ reproduce(
         reproduction_direction_local[row*buf_ny*buf_nx + idx_2d] = value;
         %endif
     }
-
     barrier(CLK_LOCAL_MEM_FENCE);
 
 
@@ -560,17 +557,49 @@ reproduce(
     ${if_thread_in_domain() | wrap1}{
         const int node_type = bc_map_local[local_index];
 
-        if (node_type < 0){ // Population node!
-            //Check if you have accumulated enough mass
+        // Loop over neighbors, see if anyone can propagate into the fluid node
+        if (node_type == FLUID_NODE){
+            int norm_constant = 0;
 
-            // Alleles are negative...need to convert to an index
-            const int allele_index = -1*node_type - 1;
+            for(int jump_id=0; jump_id < num_jumpers; jump_id++){
+                ${define_all_c() | wrap1}
 
-            const ${num_type} cur_m_reproduce = m_reproduce[allele_index];
+                ${define_streamed_index_local() | wrap1}
 
-            ${num_type} current_mass = absorbed_mass_global[spatial_index];
-            if (current_mass > cur_m_reproduce){
-                ${reproduce() | wrap4}
+                const int neighbor_jump_direction = reproduction_direction_local[streamed_index_local];
+                const int cur_reflect_index = reflect_list[jump_id];
+
+                if (neighbor_jump_direction == cur_reflect_index){ // If neighbor jumps into you...
+                    norm_constant += 1;
+                }
+            }
+            if(norm_constant != 0){// Choose someone to occupy the current lattice site
+                const ${num_type} rand_num = rand_global[spatial_index];
+
+                bool has_chosen_direction = false;
+
+                int cur_cx = 0;
+                int cur_cy = 0;
+                %if dimension == 3:
+                int cur_cz = 0;
+                %endif
+
+                //Todo: for vectorization purposes for CPU, may be better to replace with a for loop.
+                while((jump_id < num_jumpers) && (!has_chosen_direction)){
+                    jump_id += 1;
+
+                    ## Use the c's defined outside the loop
+                    ${define_all_c(identifier='') | wrap2}
+                    ${define_streamed_index_local() | wrap2}
+
+                    const int streamed_node_type = bc_map_local[streamed_index_local];
+                    if (streamed_node_type == FLUID_NODE){ // Population can expand into this!
+                        prob_total += w[jump_id]/norm_constant;
+                        if (prob_total > rand_num){
+                            has_chosen_direction = true;
+                        }
+                    }
+                }
             }
         }
     }
