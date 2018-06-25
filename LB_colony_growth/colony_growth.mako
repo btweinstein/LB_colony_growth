@@ -583,8 +583,12 @@ reproduce(
                 %if dimension == 3:
                 int cur_cz = 0;
                 %endif
-
+                //TODO: Start here
                 //Todo: for vectorization purposes for CPU, may be better to replace with a for loop.
+
+                int jump_id = -1;
+                ${num_type} prob_total = 0;
+
                 while((jump_id < num_jumpers) && (!has_chosen_direction)){
                     jump_id += 1;
 
@@ -592,9 +596,11 @@ reproduce(
                     ${define_all_c(identifier='') | wrap2}
                     ${define_streamed_index_local() | wrap2}
 
-                    const int streamed_node_type = bc_map_local[streamed_index_local];
-                    if (streamed_node_type == FLUID_NODE){ // Population can expand into this!
-                        prob_total += w[jump_id]/norm_constant;
+                    const int neighbor_jump_direction = reproduction_direction_local[streamed_index_local];
+                    const int cur_reflect_index = reflect_list[jump_id];
+
+                    if (neighbor_jump_direction == cur_reflect_index){ // If neighbor jumps into you...
+                        prob_total += 1./norm_constant;
                         if (prob_total > rand_num){
                             has_chosen_direction = true;
                         }
